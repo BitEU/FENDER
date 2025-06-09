@@ -23,7 +23,7 @@ The easiest way to use the Vehicle GPS Decoder is through its graphical interfac
 ### **Running the Application**
 
 To run the GUI, simply execute the main script without any command-line arguments:  
-python main\_gps\_decoder.py
+```python main\_gps\_decoder.py```
 
 ### **Step-by-Step Instructions**
 
@@ -48,7 +48,7 @@ For power users and for integrating the decoder into automated workflows, a full
 #### **Running the CLI**
 
 Launch the application with the \--cli flag to enter command-line mode.  
-python main\_gps\_decoder.py \--cli
+```python main\_gps\_decoder.py \--cli```
 
 #### **Step-by-Step Instructions**
 
