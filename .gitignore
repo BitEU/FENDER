@@ -1,3 +1,10 @@
+# stuff i dont want
+*.sqlite
+*.db
+*.db-shm
+*.db-wal
+FileContentIndex/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
