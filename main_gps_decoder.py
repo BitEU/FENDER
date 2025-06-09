@@ -16,8 +16,8 @@ import inspect
 from base_decoder import BaseDecoder, GPSEntry
 
 # Import specific decoders
-from onstar_decoder import OnStarDecoder
-from toyota_decoder import ToyotaDecoder
+# from decodersonstar_decoder import OnStarDecoder
+# from toyota_decoder import ToyotaDecoder
 
 if platform.system() == "Windows":
     import ctypes
@@ -27,13 +27,13 @@ class DecoderRegistry:
     """Registry for managing available decoders"""
     def __init__(self):
         self.decoders: Dict[str, Type[BaseDecoder]] = {}
-        self.register_default_decoders()
+        # self.register_default_decoders()
         self.auto_discover_decoders()
     
-    def register_default_decoders(self):
-        """Register the built-in decoders"""
-        self.register(OnStarDecoder)
-        self.register(ToyotaDecoder)
+    # def register_default_decoders(self):
+        # """Register the built-in decoders"""
+        # self.register(OnStarDecoder)
+        # self.register(ToyotaDecoder)
     
     def register(self, decoder_class: Type[BaseDecoder]):
         """Register a new decoder"""

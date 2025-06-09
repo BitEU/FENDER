@@ -51,7 +51,7 @@ class ToyotaDecoder(BaseDecoder):
         self.locations: List[LocationData] = []
     
     def get_name(self) -> str:
-        return "Toyota"
+        return "Toyota TI19"
     
     def get_supported_extensions(self) -> List[str]:
         return ['.CE0']
