@@ -1,0 +1,4 @@
+pytsk3
+tkinterdnd2
+openpyxl
+argparse
