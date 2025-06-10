@@ -290,3 +290,8 @@ logging.basicConfig(level=logging.DEBUG)
 3. Add your decoder to `decoders/`
 4. Include test files if possible
 5. Submit a pull request
+
+### Credits
+
+1. This project includes images created by Iconoir. Copyright 2025 [Iconoir](https://iconoir.com/)
+2. This project includes software developed by [qnx6-extractor](https://github.com/ReFirmLabs/qnx6-extractor). Copyright 2020  ReFirm Labs
