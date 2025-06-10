@@ -5,6 +5,7 @@
 *.db-wal
 FileContentIndex/
 v17/
+.vs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
