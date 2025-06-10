@@ -10,11 +10,14 @@ class OnStarDecoder(BaseDecoder):
         self.gps_epoch = datetime(1980, 1, 6, 0, 0, 0, tzinfo=timezone.utc)
     
     def get_name(self) -> str:
-        return "OnStar v10, v11"
+        return "OnStar Gen 10+"
     
     def get_supported_extensions(self) -> List[str]:
         return ['.CE0']  # Support numbered CE0 files
     
+    def get_dropzone_text(self) -> str:
+        return "Drop your OnStar NAND binary here\nor click to browse"
+
     def get_xlsx_headers(self) -> List[str]:
         return ['lat', 'long', 'utc_year', 'utc_month', 'utc_day', 'utc_hour', 'utc_min', 
                 'timestamp_time', '', '', '', '', '', '', 'lat_hex', 'lon_hex']

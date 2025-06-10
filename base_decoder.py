@@ -51,3 +51,8 @@ class BaseDecoder(ABC):
     def format_entry_for_xlsx(self, entry: GPSEntry) -> List[Any]:
         """Format a GPSEntry into a row for the XLSX file"""
         pass
+
+    @abstractmethod
+    def get_dropzone_text(self) -> str:
+        """Return the text to display in the drop zone for this decoder."""
+        pass

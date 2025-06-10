@@ -15,19 +15,23 @@ import inspect
 # Import base decoder
 from base_decoder import BaseDecoder, GPSEntry
 
-# Import specific decoders
-# from decodersonstar_decoder import OnStarDecoder
-# from toyota_decoder import ToyotaDecoder
-
 if platform.system() == "Windows":
     import ctypes
     from ctypes import windll
+
+def get_resource_path(relative_path):
+    """Get absolute path to resource, works for dev and for PyInstaller"""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 class DecoderRegistry:
     """Registry for managing available decoders"""
     def __init__(self):
         self.decoders: Dict[str, Type[BaseDecoder]] = {}
-        # This check is the key to the solution
         self.auto_discover_decoders()
 
     def register(self, decoder_class: Type[BaseDecoder]):
@@ -37,37 +41,45 @@ class DecoderRegistry:
 
     def auto_discover_decoders(self):
         """Automatically discover and register decoders from the decoders directory"""
-        decoders_dir = Path("decoders")
+        # Handle both development and frozen (PyInstaller) environments
+        if getattr(sys, 'frozen', False):
+            # Running in a PyInstaller bundle
+            decoders_dir = Path(get_resource_path("decoders"))
+            # Add the resource path to sys.path temporarily
+            resource_path = get_resource_path("")
+            if resource_path not in sys.path:
+                sys.path.insert(0, resource_path)
+        else:
+            # Running in development
+            decoders_dir = Path("decoders")
+            sys.path.append(str(decoders_dir.parent))
+
         if not decoders_dir.exists():
+            print(f"Decoders directory not found: {decoders_dir}")
             return
 
-        # This line needs to be here for the discovery method to work in development
-        sys.path.append(str(decoders_dir.parent))
+        print(f"Looking for decoders in: {decoders_dir}")
 
         for file_path in decoders_dir.glob("*_decoder.py"):
-            module_name = f"{decoders_dir.name}.{file_path.stem}"
+            module_name = f"decoders.{file_path.stem}"
+            print(f"Attempting to load: {module_name}")
             try:
                 module = importlib.import_module(module_name)
                 for name, obj in inspect.getmembers(module):
                     if (inspect.isclass(obj) and
                         issubclass(obj, BaseDecoder) and
                         obj != BaseDecoder):
+                        print(f"Registered decoder: {obj}")
                         self.register(obj)
             except Exception as e:
                 print(f"Failed to load decoder from {file_path}: {e}")
+                import traceback
+                traceback.print_exc()
 
     def get_decoder_names(self) -> List[str]:
         """Get list of available decoder names"""
         return sorted(self.decoders.keys())
 
-    def get_decoder(self, name: str) -> Type[BaseDecoder]:
-        """Get decoder class by name"""
-        return self.decoders.get(name)
-    
-    def get_decoder_names(self) -> List[str]:
-        """Get list of available decoder names"""
-        return sorted(self.decoders.keys())
-    
     def get_decoder(self, name: str) -> Type[BaseDecoder]:
         """Get decoder class by name"""
         return self.decoders.get(name)
@@ -75,23 +87,22 @@ class DecoderRegistry:
 class VehicleGPSDecoder:
     def __init__(self, root):
         self.root = root
-        self.root.title("Vehicle GPS Decoder")
-        self.root.geometry("1050x650")  # Increased width
+        self.root.title("FENDER")
+        self.root.geometry("1150x600")
         self.root.configure(bg='#1a1a1a')
         
         # Initialize decoder registry
         self.decoder_registry = DecoderRegistry()
         decoder_names = self.decoder_registry.get_decoder_names()
 
-        # This is the new check to prevent the crash
+        # Check if decoders were found
         if not decoder_names:
             self.root.withdraw()  # Hide the empty window
             messagebox.showerror("Initialization Error",
-                                 "No decoders found.\n\nPlease create a 'decoders' folder in the same directory and add your '*_decoder.py' files to it.")
+                                 "No decoders found.\n\nPlease ensure decoder files are properly included.")
             self.root.destroy()
-            return  # Stop the program from initializing further
+            return
 
-        # The rest of the original code continues from here, now safe from the error
         self.current_decoder = None
         self.selected_decoder_name = decoder_names[0]
         self.decoder_buttons = {}
@@ -130,7 +141,7 @@ class VehicleGPSDecoder:
         self.style.configure('Subtitle.TLabel', 
                    background='#1a1a1a', 
                    foreground='#cccccc', 
-                   font=('Segoe UI', 13)) # Increased from 11 to 13
+                   font=('Segoe UI', 13))
         
         self.style.configure('Dark.TFrame', 
                            background='#1a1a1a', 
@@ -145,10 +156,10 @@ class VehicleGPSDecoder:
         self.style.configure('Dark.TButton',
                    background='#4a9eff',
                    foreground='white',
-                   font=('Segoe UI', 11), # Increased from 10 to 11
+                   font=('Segoe UI', 11),
                    borderwidth=0,
                    focuscolor='none',
-                   padding=(12, 8)) # Added padding
+                   padding=(12, 8))
         
         self.style.map('Dark.TButton',
                       background=[('active', '#3d8ce6'),
@@ -157,10 +168,10 @@ class VehicleGPSDecoder:
         self.style.configure('Disabled.TButton',
                    background='#888888',
                    foreground='#cccccc',
-                   font=('Segoe UI', 11), # Increased from 10 to 11
+                   font=('Segoe UI', 11),
                    borderwidth=0,
                    focuscolor='none',
-                   padding=(12, 8)) # Added padding
+                   padding=(12, 8))
         
         self.style.map('Disabled.TButton',
                       background=[('active', '#888888'), ('disabled', '#888888')],
@@ -193,7 +204,7 @@ class VehicleGPSDecoder:
         self.style.configure('DecoderList.TButton',
                    background='#252525',
                    foreground='#cccccc',
-                   font=('Segoe UI', 12), # Increased size and removed bold
+                   font=('Segoe UI', 12),
                    borderwidth=1,
                    focuscolor='none',
                    bordercolor='#1a1a1a',
@@ -217,11 +228,11 @@ class VehicleGPSDecoder:
     def setup_ui(self):
         # Main container
         main_frame = ttk.Frame(self.root, style='Dark.TFrame')
-        main_frame.pack(fill='both', expand=True, padx=20, pady=20) # Reduced padding
+        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
         
         # --- Left Panel for Decoder Selection ---
         left_panel = ttk.Frame(main_frame, style='Dark.TFrame', width=190)
-        left_panel.pack_propagate(False)  # This forces the panel to obey the width setting
+        left_panel.pack_propagate(False)
         left_panel.pack(side='left', fill='y', padx=(0, 20))
         
         decoder_label = ttk.Label(left_panel, text="Select Decoder",
@@ -257,15 +268,15 @@ class VehicleGPSDecoder:
         right_panel = ttk.Frame(main_frame, style='Dark.TFrame')
         right_panel.pack(side='right', fill='both', expand=True)
         
-        # Header (now in right_panel)
+        # Header
         header_frame = ttk.Frame(right_panel, style='Dark.TFrame')
         header_frame.pack(fill='x', pady=(0, 20))
-        title_label = ttk.Label(header_frame, text="Vehicle GPS Decoder", style='Title.TLabel')
+        title_label = ttk.Label(header_frame, text="Forensic Extraction of Navigational Data & Event Records", style='Title.TLabel')
         title_label.pack(anchor='w')
-        subtitle_label = ttk.Label(header_frame, text="Extract and decode GPS data from vehicle telematics binary files", style='Subtitle.TLabel')
+        subtitle_label = ttk.Label(header_frame, text="Extract and decode GPS data with timestamps from vehicle telematics binary files", style='Subtitle.TLabel')
         subtitle_label.pack(anchor='w', pady=(5, 0))
 
-        # Drop zone (now in right_panel)
+        # Drop zone
         self.drop_frame = ttk.Frame(right_panel, style='DropZone.TFrame')
         self.drop_frame.pack(fill='both', expand=True, pady=(0, 20))
         drop_content = tk.Frame(self.drop_frame, bg='#252525')
@@ -277,7 +288,7 @@ class VehicleGPSDecoder:
         self.file_info_label = tk.Label(drop_content, text="", bg='#252525', fg='#888888', font=('Segoe UI', 10))
         self.file_info_label.pack(pady=(10, 0))
 
-        # Buttons frame (now in right_panel)
+        # Buttons frame
         button_frame = ttk.Frame(right_panel, style='Dark.TFrame')
         button_frame.pack(fill='x', pady=(0, 20))
         self.browse_btn = ttk.Button(button_frame, text="Browse Files", style='Dark.TButton', command=self.browse_file)
@@ -287,7 +298,7 @@ class VehicleGPSDecoder:
         self.clear_btn = ttk.Button(button_frame, text="Clear", style='Disabled.TButton', command=self.clear_file, state='disabled')
         self.clear_btn.pack(side='right')
 
-        # Progress section (now in right_panel)
+        # Progress section
         progress_frame = ttk.Frame(right_panel, style='Dark.TFrame')
         progress_frame.pack(fill='x')
         self.progress_label = ttk.Label(progress_frame, text="", background='#1a1a1a', foreground='#cccccc', font=('Segoe UI', 10))
@@ -295,7 +306,7 @@ class VehicleGPSDecoder:
         self.progress = ttk.Progressbar(progress_frame, style='Horizontal.TProgressbar', mode='determinate', length=300)
         self.progress.pack(fill='x')
 
-        # Results section (now in right_panel)
+        # Results section
         results_frame = ttk.Frame(right_panel, style='Dark.TFrame')
         results_frame.pack(fill='x', pady=(20, 0))
         self.results_label = ttk.Label(results_frame, text="", background='#1a1a1a', foreground='#4a9eff', font=('Segoe UI', 11, 'bold'))
@@ -315,10 +326,10 @@ class VehicleGPSDecoder:
     
     def on_decoder_changed(self):
         """Handle decoder type change"""
-        # Update drop label hint
-        decoder_name = self.selected_decoder_name # No .get() needed
-        self.drop_label.configure(text=f"Drop {decoder_name} binary file here\nor click to browse")
-        
+        decoder_class = self.decoder_registry.get_decoder(self.selected_decoder_name)
+        decoder_instance = decoder_class()
+        self.drop_label.configure(text=decoder_instance.get_dropzone_text())
+
         # Clear current file if any
         if self.input_file:
             self.clear_file()
@@ -480,6 +491,10 @@ def run_cli():
     registry = DecoderRegistry()
     decoder_names = registry.get_decoder_names()
     
+    if not decoder_names:
+        print("Error: No decoders found!")
+        return
+    
     # Select decoder
     print("\nAvailable decoders:")
     for i, name in enumerate(decoder_names, 1):
@@ -520,7 +535,6 @@ def run_cli():
         print(f"Error: {error}")
     else:
         # Write XLSX
-        from openpyxl import Workbook
         wb = Workbook()
         ws = wb.active
         ws.title = "GPS Data"
@@ -542,14 +556,9 @@ def run_gui():
     
     # Set icon
     try:
-        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-            base_path = sys._MEIPASS
-            icon_path = os.path.join(base_path, "car.ico")
-        else:
-            base_path = os.path.dirname(os.path.abspath(__file__))
-            icon_path = os.path.join(base_path, "car.ico")
-        
-        root.iconbitmap(icon_path)
+        icon_path = get_resource_path("car.ico")
+        if os.path.exists(icon_path):
+            root.iconbitmap(icon_path)
     except tk.TclError:
         pass  # Silently ignore if icon not found
     

@@ -2,18 +2,4 @@ Compile into single file:
 
 
 
-python -m PyInstaller -F ^
---paths="C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.1008.0_x64__qbz5n2kfra8p0\Lib\site-packages" ^
--i "C:\Users\wcdaht\Documents\Schiavone_Code_Env\Onstar_Gen11_Parsing\car.ico" ^
---add-data "C:\Users\wcdaht\Documents\Schiavone_Code_Env\Onstar_Gen11_Parsing\car.ico;." ^
---hidden-import=tkinterdnd2 ^
-"C:\Users\wcdaht\Documents\Schiavone_Code_Env\Onstar_Gen11_Parsing\onstar_gen11.py"
-
-
-
-python -m PyInstaller -F ^
---paths="C:\Python313\Lib" ^
--i "C:\Users\Steven\Documents\GitHub\Onstar_Gen11_Parsing\car.ico" ^
---add-data "C:\Users\Steven\Documents\GitHub\Onstar_Gen11_Parsing\car.ico;." ^
---hidden-import=tkinterdnd2 ^
-"C:\Users\Steven\Documents\GitHub\Onstar_Gen11_Parsing\onstar_gen11.py"
+python -m PyInstaller --onefile --windowed --icon=car.ico --add-data "decoders;decoders" --add-data "base_decoder.py;." --add-data "car.ico;." --hidden-import="tkinterdnd2" --hidden-import="decoders.honda_decoder" --hidden-import="decoders.onstar_decoder" --hidden-import="decoders.toyota_decoder" main_gps_decoder.py

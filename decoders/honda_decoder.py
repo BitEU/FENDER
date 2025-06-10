@@ -27,12 +27,15 @@ class HondaDecoder(BaseDecoder):
     
     def get_name(self) -> str:
         """Return the name of this decoder for display in the GUI"""
-        return "Honda CRM Database"
+        return "Honda Telematics"
     
     def get_supported_extensions(self) -> List[str]:
         """Return supported file extensions for Honda Android images"""
         return ['.USER']
     
+    def get_dropzone_text(self) -> str:
+        return "Drop your Honda Infotainment System\neMMC binary here or click to browse"
+
     def get_xlsx_headers(self) -> List[str]:
         """Return column headers for the XLSX output file"""
         return [

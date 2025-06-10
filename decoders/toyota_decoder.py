@@ -51,11 +51,14 @@ class ToyotaDecoder(BaseDecoder):
         self.locations: List[LocationData] = []
     
     def get_name(self) -> str:
-        return "Toyota TI19"
+        return "Toyota TL19"
     
     def get_supported_extensions(self) -> List[str]:
         return ['.CE0']
     
+    def get_dropzone_text(self) -> str:
+        return "Drop your Toyota NAND binary here\nor click to browse"
+
     def get_xlsx_headers(self) -> List[str]:
         # Toyota format has fewer columns than OnStar
         return ['lat', 'long', 'timestamp_time'] + [''] * 11  # 11 blank columns
