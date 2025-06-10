@@ -125,12 +125,12 @@ class VehicleGPSDecoder:
         self.style.configure('Title.TLabel', 
                            background='#1a1a1a', 
                            foreground='#ffffff', 
-                           font=('Rockwell', 24, 'bold'))
+                           font=('Segoe UI', 24, 'bold'))
         
         self.style.configure('Subtitle.TLabel', 
                    background='#1a1a1a', 
                    foreground='#cccccc', 
-                   font=('Rockwell', 13)) # Increased from 11 to 13
+                   font=('Segoe UI', 13)) # Increased from 11 to 13
         
         self.style.configure('Dark.TFrame', 
                            background='#1a1a1a', 
@@ -145,7 +145,7 @@ class VehicleGPSDecoder:
         self.style.configure('Dark.TButton',
                    background='#4a9eff',
                    foreground='white',
-                   font=('Rockwell', 11), # Increased from 10 to 11
+                   font=('Segoe UI', 11), # Increased from 10 to 11
                    borderwidth=0,
                    focuscolor='none',
                    padding=(12, 8)) # Added padding
@@ -157,7 +157,7 @@ class VehicleGPSDecoder:
         self.style.configure('Disabled.TButton',
                    background='#888888',
                    foreground='#cccccc',
-                   font=('Rockwell', 11), # Increased from 10 to 11
+                   font=('Segoe UI', 11), # Increased from 10 to 11
                    borderwidth=0,
                    focuscolor='none',
                    padding=(12, 8)) # Added padding
@@ -183,7 +183,7 @@ class VehicleGPSDecoder:
         self.style.configure('Dark.TRadiobutton',
                            background='#1a1a1a',
                            foreground='#cccccc',
-                           font=('Rockwell', 10),
+                           font=('Segoe UI', 10),
                            focuscolor='none')
         
         self.style.map('Dark.TRadiobutton',
@@ -193,7 +193,7 @@ class VehicleGPSDecoder:
         self.style.configure('DecoderList.TButton',
                    background='#252525',
                    foreground='#cccccc',
-                   font=('Rockwell', 12), # Increased size and removed bold
+                   font=('Segoe UI', 12), # Increased size and removed bold
                    borderwidth=1,
                    focuscolor='none',
                    bordercolor='#1a1a1a',
@@ -205,7 +205,7 @@ class VehicleGPSDecoder:
         self.style.configure('Selected.TButton',
                            background='#4a9eff',
                            foreground='white',
-                           font=('Rockwell', 11, 'bold'),
+                           font=('Segoe UI', 11, 'bold'),
                            borderwidth=1,
                            bordercolor='#1a1a1a',
                            focuscolor='none',
@@ -226,7 +226,7 @@ class VehicleGPSDecoder:
         
         decoder_label = ttk.Label(left_panel, text="Select Decoder",
                                   background='#1a1a1a', foreground='#ffffff',
-                                  font=('Rockwell', 14, 'bold'))
+                                  font=('Segoe UI', 14, 'bold'))
         decoder_label.pack(anchor='w', pady=(10, 15))
         
         # Scrollable area for decoder buttons
@@ -270,11 +270,11 @@ class VehicleGPSDecoder:
         self.drop_frame.pack(fill='both', expand=True, pady=(0, 20))
         drop_content = tk.Frame(self.drop_frame, bg='#252525')
         drop_content.place(relx=0.5, rely=0.5, anchor='center')
-        icon_label = tk.Label(drop_content, text="📁", bg='#252525', fg='#4a9eff', font=('Rockwell', 48))
+        icon_label = tk.Label(drop_content, text="📁", bg='#252525', fg='#4a9eff', font=('Segoe UI', 48))
         icon_label.pack(pady=(0, 10))
-        self.drop_label = tk.Label(drop_content, text="", bg='#252525', fg='#cccccc', font=('Rockwell', 14), justify='center')
+        self.drop_label = tk.Label(drop_content, text="", bg='#252525', fg='#cccccc', font=('Segoe UI', 14), justify='center')
         self.drop_label.pack()
-        self.file_info_label = tk.Label(drop_content, text="", bg='#252525', fg='#888888', font=('Rockwell', 10))
+        self.file_info_label = tk.Label(drop_content, text="", bg='#252525', fg='#888888', font=('Segoe UI', 10))
         self.file_info_label.pack(pady=(10, 0))
 
         # Buttons frame (now in right_panel)
@@ -290,7 +290,7 @@ class VehicleGPSDecoder:
         # Progress section (now in right_panel)
         progress_frame = ttk.Frame(right_panel, style='Dark.TFrame')
         progress_frame.pack(fill='x')
-        self.progress_label = ttk.Label(progress_frame, text="", background='#1a1a1a', foreground='#cccccc', font=('Rockwell', 10))
+        self.progress_label = ttk.Label(progress_frame, text="", background='#1a1a1a', foreground='#cccccc', font=('Segoe UI', 10))
         self.progress_label.pack(anchor='w', pady=(0, 5))
         self.progress = ttk.Progressbar(progress_frame, style='Horizontal.TProgressbar', mode='determinate', length=300)
         self.progress.pack(fill='x')
@@ -298,7 +298,7 @@ class VehicleGPSDecoder:
         # Results section (now in right_panel)
         results_frame = ttk.Frame(right_panel, style='Dark.TFrame')
         results_frame.pack(fill='x', pady=(20, 0))
-        self.results_label = ttk.Label(results_frame, text="", background='#1a1a1a', foreground='#4a9eff', font=('Rockwell', 11, 'bold'))
+        self.results_label = ttk.Label(results_frame, text="", background='#1a1a1a', foreground='#4a9eff', font=('Segoe UI', 11, 'bold'))
         self.results_label.pack(anchor='w')
 
         # Set initial state
