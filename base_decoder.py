@@ -5,8 +5,8 @@ from dataclasses import dataclass
 @dataclass
 class GPSEntry:
     """Standard GPS entry that all decoders must return"""
-    lat: float
-    long: float
+    latitude: float  # Fixed the typo from 'latitutde' to 'latitude'
+    longitude: float
     timestamp: str
     # Additional fields that may or may not be used by specific decoders
     extra_data: Dict[str, Any] = None

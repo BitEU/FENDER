@@ -31,7 +31,7 @@ class HondaDecoder(BaseDecoder):
     
     def get_supported_extensions(self) -> List[str]:
         """Return supported file extensions for Honda Android images"""
-        return ['.USER']
+        return ['.USER', '.bin']
     
     def get_dropzone_text(self) -> str:
         return "Drop your Honda Infotainment System\neMMC binary here or click to browse"

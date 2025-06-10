@@ -54,14 +54,14 @@ class ToyotaDecoder(BaseDecoder):
         return "Toyota TL19"
     
     def get_supported_extensions(self) -> List[str]:
-        return ['.CE0']
+        return ['.CE0', '.bin']
     
     def get_dropzone_text(self) -> str:
         return "Drop your Toyota NAND binary here\nor click to browse"
 
     def get_xlsx_headers(self) -> List[str]:
         # Toyota format has fewer columns than OnStar
-        return ['lat', 'long', 'timestamp_time'] + [''] * 11  # 11 blank columns
+        return ['Latitude', 'Longitude', 'Timestamp'] + [''] * 11  # 11 blank columns
     
     def format_entry_for_xlsx(self, entry: GPSEntry) -> List[Any]:
         """Format a GPSEntry into a row for the XLSX file"""

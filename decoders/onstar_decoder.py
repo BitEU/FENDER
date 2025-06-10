@@ -13,20 +13,20 @@ class OnStarDecoder(BaseDecoder):
         return "OnStar Gen 10+"
     
     def get_supported_extensions(self) -> List[str]:
-        return ['.CE0']  # Support numbered CE0 files
+        return ['.CE0', '.bin']  # Support numbered CE0 files
     
     def get_dropzone_text(self) -> str:
         return "Drop your OnStar NAND binary here\nor click to browse"
 
     def get_xlsx_headers(self) -> List[str]:
-        return ['lat', 'long', 'utc_year', 'utc_month', 'utc_day', 'utc_hour', 'utc_min', 
-                'timestamp_time', '', '', '', '', '', '', 'lat_hex', 'lon_hex']
+        return ['Latitude (Decimal)', 'Longitude (Decimal)', 'Year', 'Month', 'Day', 'Hour', 'Minute', 
+            'Epoch-Dervived Timestamp (UTC)', '', '', '', '', '', '', 'Latitude (Raw Hex)', 'Longitude (Raw Hex)']
     
     def format_entry_for_xlsx(self, entry: GPSEntry) -> List[Any]:
         """Format a GPSEntry into a row for the XLSX file"""
         return [
-            entry.lat if entry.lat != 0 else 'ERROR',
-            entry.long if entry.long != 0 else 'ERROR',
+            entry.latitude if entry.latitude != 0 else 'ERROR',  # Fixed: use 'latitude' instead of 'lat'
+            entry.longitude if entry.longitude != 0 else 'ERROR',  # Fixed: use 'longitude' instead of 'long'
             entry.extra_data.get('utc_year', 'ERROR'),
             entry.extra_data.get('utc_month', 'ERROR'),
             entry.extra_data.get('utc_day', 'ERROR'),
@@ -59,10 +59,10 @@ class OnStarDecoder(BaseDecoder):
             for i, block in enumerate(gps_blocks):
                 entry_data = self.parse_gps_block(block)
                 if entry_data and self.is_valid_entry(entry_data):
-                    # Convert to standard GPSEntry
+                    # Convert to standard GPSEntry - Fixed parameter names
                     gps_entry = GPSEntry(
-                        lat=entry_data['lat'] if entry_data['lat'] != 'ERROR' else 0,
-                        long=entry_data['long'] if entry_data['long'] != 'ERROR' else 0,
+                        latitude=entry_data['lat'] if entry_data['lat'] != 'ERROR' else 0,  # Fixed: use 'latitude'
+                        longitude=entry_data['long'] if entry_data['long'] != 'ERROR' else 0,  # Fixed: use 'longitude'
                         timestamp=entry_data['timestamp_time'] if entry_data['timestamp_time'] != 'ERROR' else '',
                         extra_data={
                             'utc_year': entry_data.get('utc_year', ''),
