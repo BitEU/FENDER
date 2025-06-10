@@ -27,38 +27,42 @@ class DecoderRegistry:
     """Registry for managing available decoders"""
     def __init__(self):
         self.decoders: Dict[str, Type[BaseDecoder]] = {}
-        # self.register_default_decoders()
+        # This check is the key to the solution
         self.auto_discover_decoders()
-    
-    # def register_default_decoders(self):
-        # """Register the built-in decoders"""
-        # self.register(OnStarDecoder)
-        # self.register(ToyotaDecoder)
-    
+
     def register(self, decoder_class: Type[BaseDecoder]):
         """Register a new decoder"""
         instance = decoder_class()
         self.decoders[instance.get_name()] = decoder_class
-    
+
     def auto_discover_decoders(self):
         """Automatically discover and register decoders from the decoders directory"""
         decoders_dir = Path("decoders")
         if not decoders_dir.exists():
             return
-        
-        sys.path.append(str(decoders_dir))
-        
+
+        # This line needs to be here for the discovery method to work in development
+        sys.path.append(str(decoders_dir.parent))
+
         for file_path in decoders_dir.glob("*_decoder.py"):
-            module_name = file_path.stem
+            module_name = f"{decoders_dir.name}.{file_path.stem}"
             try:
                 module = importlib.import_module(module_name)
                 for name, obj in inspect.getmembers(module):
-                    if (inspect.isclass(obj) and 
-                        issubclass(obj, BaseDecoder) and 
+                    if (inspect.isclass(obj) and
+                        issubclass(obj, BaseDecoder) and
                         obj != BaseDecoder):
                         self.register(obj)
             except Exception as e:
                 print(f"Failed to load decoder from {file_path}: {e}")
+
+    def get_decoder_names(self) -> List[str]:
+        """Get list of available decoder names"""
+        return sorted(self.decoders.keys())
+
+    def get_decoder(self, name: str) -> Type[BaseDecoder]:
+        """Get decoder class by name"""
+        return self.decoders.get(name)
     
     def get_decoder_names(self) -> List[str]:
         """Get list of available decoder names"""
