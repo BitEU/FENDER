@@ -13,8 +13,8 @@ FENDER (Forensic Extractor of Navigational Data and Electronic Records) is a pow
 
 ## **Supported Decoders**
 
-* **OnStar** (for .CE0, .CE0.001, .CE0.002 files)  
-* **Toyota** (for .CE0 files)
+* **OnStar v10, v11** (for .CE0 files)  
+* **Toyota TI19** (for .CE0 files)
 
 ## **Quick Start & Simple Usage (GUI)**
 
@@ -36,8 +36,9 @@ To run the GUI, simply execute the main script without any command-line argument
    * Once you've selected a file, the "Process File" button will become active. Click it to begin the extraction and decoding process.  
    * You will see a progress bar and status updates as the application works.  
 4. **Get Your Results:**  
-   * When processing is complete, a success message will appear.  
+   * When processing is complete, a success message will appear. To parse a new file, click "Clear" and start again.
    * An .xlsx file containing the extracted GPS data will be saved in the **same directory** as your input file. The output file will be named based on the original filename and the decoder used (e.g., YourFile\_OnStar.xlsx).
+
 
 ## **Advanced Usage & Developer Guide**
 

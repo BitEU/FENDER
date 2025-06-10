@@ -72,21 +72,47 @@ class VehicleGPSDecoder:
     def __init__(self, root):
         self.root = root
         self.root.title("Vehicle GPS Decoder")
-        self.root.geometry("800x650")
+        self.root.geometry("1050x650")  # Increased width
         self.root.configure(bg='#1a1a1a')
         
         # Initialize decoder registry
         self.decoder_registry = DecoderRegistry()
+        decoder_names = self.decoder_registry.get_decoder_names()
+
+        # This is the new check to prevent the crash
+        if not decoder_names:
+            self.root.withdraw()  # Hide the empty window
+            messagebox.showerror("Initialization Error",
+                                 "No decoders found.\n\nPlease create a 'decoders' folder in the same directory and add your '*_decoder.py' files to it.")
+            self.root.destroy()
+            return  # Stop the program from initializing further
+
+        # The rest of the original code continues from here, now safe from the error
         self.current_decoder = None
-        self.selected_decoder_name = tk.StringVar(value=self.decoder_registry.get_decoder_names()[0])
-        
+        self.selected_decoder_name = decoder_names[0]
+        self.decoder_buttons = {}
+
         self.setup_styles()
         self.input_file = None
         self.is_processing = False
-        
+
         self.setup_ui()
         self.setup_drag_drop()
     
+    def select_decoder(self, decoder_name: str):
+        """Handle decoder selection from the button list."""
+        self.selected_decoder_name = decoder_name
+        
+        # Update button styles
+        for name, button in self.decoder_buttons.items():
+            if name == decoder_name:
+                button.configure(style='Selected.TButton')
+            else:
+                button.configure(style='DecoderList.TButton')
+        
+        # Trigger updates
+        self.on_decoder_changed()
+
     def setup_styles(self):
         self.style = ttk.Style()
         self.style.theme_use('clam')
@@ -95,12 +121,12 @@ class VehicleGPSDecoder:
         self.style.configure('Title.TLabel', 
                            background='#1a1a1a', 
                            foreground='#ffffff', 
-                           font=('Segoe UI', 24, 'bold'))
+                           font=('Rockwell', 24, 'bold'))
         
         self.style.configure('Subtitle.TLabel', 
-                           background='#1a1a1a', 
-                           foreground='#cccccc', 
-                           font=('Segoe UI', 11))
+                   background='#1a1a1a', 
+                   foreground='#cccccc', 
+                   font=('Rockwell', 13)) # Increased from 11 to 13
         
         self.style.configure('Dark.TFrame', 
                            background='#1a1a1a', 
@@ -113,22 +139,24 @@ class VehicleGPSDecoder:
                            bordercolor='#333333')
         
         self.style.configure('Dark.TButton',
-                           background='#4a9eff',
-                           foreground='white',
-                           font=('Segoe UI', 10),
-                           borderwidth=0,
-                           focuscolor='none')
+                   background='#4a9eff',
+                   foreground='white',
+                   font=('Rockwell', 11), # Increased from 10 to 11
+                   borderwidth=0,
+                   focuscolor='none',
+                   padding=(12, 8)) # Added padding
         
         self.style.map('Dark.TButton',
                       background=[('active', '#3d8ce6'),
                                 ('pressed', '#2d7acc')])
         
         self.style.configure('Disabled.TButton',
-                           background='#888888',
-                           foreground='#cccccc',
-                           font=('Segoe UI', 10),
-                           borderwidth=0,
-                           focuscolor='none')
+                   background='#888888',
+                   foreground='#cccccc',
+                   font=('Rockwell', 11), # Increased from 10 to 11
+                   borderwidth=0,
+                   focuscolor='none',
+                   padding=(12, 8)) # Added padding
         
         self.style.map('Disabled.TButton',
                       background=[('active', '#888888'), ('disabled', '#888888')],
@@ -151,130 +179,126 @@ class VehicleGPSDecoder:
         self.style.configure('Dark.TRadiobutton',
                            background='#1a1a1a',
                            foreground='#cccccc',
-                           font=('Segoe UI', 10),
+                           font=('Rockwell', 10),
                            focuscolor='none')
         
         self.style.map('Dark.TRadiobutton',
                       background=[('active', '#1a1a1a')],
                       foreground=[('active', '#ffffff')])
+
+        self.style.configure('DecoderList.TButton',
+                   background='#252525',
+                   foreground='#cccccc',
+                   font=('Rockwell', 12), # Increased size and removed bold
+                   borderwidth=1,
+                   focuscolor='none',
+                   bordercolor='#1a1a1a',
+                   padding=(15, 10))
+        
+        self.style.map('DecoderList.TButton',
+                      background=[('active', '#333333')])
+        
+        self.style.configure('Selected.TButton',
+                           background='#4a9eff',
+                           foreground='white',
+                           font=('Rockwell', 11, 'bold'),
+                           borderwidth=1,
+                           bordercolor='#1a1a1a',
+                           focuscolor='none',
+                           padding=(15, 10))
+        
+        self.style.map('Selected.TButton',
+                      background=[('active', '#3d8ce6')])
     
     def setup_ui(self):
         # Main container
         main_frame = ttk.Frame(self.root, style='Dark.TFrame')
-        main_frame.pack(fill='both', expand=True, padx=40, pady=30)
+        main_frame.pack(fill='both', expand=True, padx=20, pady=20) # Reduced padding
         
-        # Header
-        header_frame = ttk.Frame(main_frame, style='Dark.TFrame')
+        # --- Left Panel for Decoder Selection ---
+        left_panel = ttk.Frame(main_frame, style='Dark.TFrame', width=190)
+        left_panel.pack_propagate(False)  # This forces the panel to obey the width setting
+        left_panel.pack(side='left', fill='y', padx=(0, 20))
+        
+        decoder_label = ttk.Label(left_panel, text="Select Decoder",
+                                  background='#1a1a1a', foreground='#ffffff',
+                                  font=('Rockwell', 14, 'bold'))
+        decoder_label.pack(anchor='w', pady=(10, 15))
+        
+        # Scrollable area for decoder buttons
+        canvas = tk.Canvas(left_panel, bg='#1a1a1a', highlightthickness=0)
+        scrollbar = ttk.Scrollbar(left_panel, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas, style='Dark.TFrame')
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Populate decoder buttons
+        for decoder_name in self.decoder_registry.get_decoder_names():
+            btn = ttk.Button(scrollable_frame, text=decoder_name,
+                             style='DecoderList.TButton',
+                             command=lambda name=decoder_name: self.select_decoder(name))
+            btn.pack(fill='x', expand=True, pady=2)
+            self.decoder_buttons[decoder_name] = btn
+            
+        # --- Right Panel for Main Content ---
+        right_panel = ttk.Frame(main_frame, style='Dark.TFrame')
+        right_panel.pack(side='right', fill='both', expand=True)
+        
+        # Header (now in right_panel)
+        header_frame = ttk.Frame(right_panel, style='Dark.TFrame')
         header_frame.pack(fill='x', pady=(0, 20))
-        
         title_label = ttk.Label(header_frame, text="Vehicle GPS Decoder", style='Title.TLabel')
         title_label.pack(anchor='w')
-        
-        subtitle_label = ttk.Label(header_frame, 
-                                 text="Extract and decode GPS data from vehicle telematics binary files", 
-                                 style='Subtitle.TLabel')
+        subtitle_label = ttk.Label(header_frame, text="Extract and decode GPS data from vehicle telematics binary files", style='Subtitle.TLabel')
         subtitle_label.pack(anchor='w', pady=(5, 0))
-        
-        # Decoder selection frame
-        decoder_frame = ttk.Frame(main_frame, style='Dark.TFrame')
-        decoder_frame.pack(fill='x', pady=(0, 20))
-        
-        decoder_label = ttk.Label(decoder_frame, text="Select Decoder Type:", 
-                                background='#1a1a1a', foreground='#ffffff', 
-                                font=('Segoe UI', 12, 'bold'))
-        decoder_label.pack(anchor='w', pady=(0, 10))
-        
-        # Radio buttons for decoder selection
-        radio_frame = ttk.Frame(decoder_frame, style='Dark.TFrame')
-        radio_frame.pack(fill='x', padx=(20, 0))
-        
-        for decoder_name in self.decoder_registry.get_decoder_names():
-            rb = ttk.Radiobutton(radio_frame, text=decoder_name, 
-                               variable=self.selected_decoder_name, 
-                               value=decoder_name,
-                               style='Dark.TRadiobutton',
-                               command=self.on_decoder_changed)
-            rb.pack(anchor='w', pady=2)
-        
-        # Drop zone
-        self.drop_frame = ttk.Frame(main_frame, style='DropZone.TFrame')
+
+        # Drop zone (now in right_panel)
+        self.drop_frame = ttk.Frame(right_panel, style='DropZone.TFrame')
         self.drop_frame.pack(fill='both', expand=True, pady=(0, 20))
-        
-        # Drop content
         drop_content = tk.Frame(self.drop_frame, bg='#252525')
         drop_content.place(relx=0.5, rely=0.5, anchor='center')
-        
-        # Icon
-        icon_label = tk.Label(drop_content, text="📁", bg='#252525', fg='#4a9eff', font=('Segoe UI', 48))
+        icon_label = tk.Label(drop_content, text="📁", bg='#252525', fg='#4a9eff', font=('Rockwell', 48))
         icon_label.pack(pady=(0, 10))
-        
-        self.drop_label = tk.Label(
-            drop_content,
-            text="Drop vehicle binary file here\nor click to browse",
-            bg='#252525',
-            fg='#cccccc',
-            font=('Segoe UI', 14),
-            justify='center'
-        )
+        self.drop_label = tk.Label(drop_content, text="", bg='#252525', fg='#cccccc', font=('Rockwell', 14), justify='center')
         self.drop_label.pack()
-        
-        # File info
-        self.file_info_label = tk.Label(
-            drop_content,
-            text="",
-            bg='#252525',
-            fg='#888888',
-            font=('Segoe UI', 10)
-        )
+        self.file_info_label = tk.Label(drop_content, text="", bg='#252525', fg='#888888', font=('Rockwell', 10))
         self.file_info_label.pack(pady=(10, 0))
-        
-        # Buttons frame
-        button_frame = ttk.Frame(main_frame, style='Dark.TFrame')
+
+        # Buttons frame (now in right_panel)
+        button_frame = ttk.Frame(right_panel, style='Dark.TFrame')
         button_frame.pack(fill='x', pady=(0, 20))
-        
-        # Browse button
-        self.browse_btn = ttk.Button(button_frame, text="Browse Files", 
-                                   style='Dark.TButton',
-                                   command=self.browse_file)
+        self.browse_btn = ttk.Button(button_frame, text="Browse Files", style='Dark.TButton', command=self.browse_file)
         self.browse_btn.pack(side='left', padx=(0, 10))
-        
-        # Process button
-        self.process_btn = ttk.Button(button_frame, text="Process File", 
-                                    style='Disabled.TButton',
-                                    command=self.process_file,
-                                    state='disabled')
+        self.process_btn = ttk.Button(button_frame, text="Process File", style='Disabled.TButton', command=self.process_file, state='disabled')
         self.process_btn.pack(side='left')
-        
-        # Clear button
-        self.clear_btn = ttk.Button(button_frame, text="Clear", 
-                                  style='Disabled.TButton',
-                                  command=self.clear_file,
-                                  state='disabled')
+        self.clear_btn = ttk.Button(button_frame, text="Clear", style='Disabled.TButton', command=self.clear_file, state='disabled')
         self.clear_btn.pack(side='right')
-        
-        # Progress section
-        progress_frame = ttk.Frame(main_frame, style='Dark.TFrame')
+
+        # Progress section (now in right_panel)
+        progress_frame = ttk.Frame(right_panel, style='Dark.TFrame')
         progress_frame.pack(fill='x')
-        
-        self.progress_label = ttk.Label(progress_frame, text="",
-                                      background='#1a1a1a', 
-                                      foreground='#cccccc',
-                                      font=('Segoe UI', 10))
+        self.progress_label = ttk.Label(progress_frame, text="", background='#1a1a1a', foreground='#cccccc', font=('Rockwell', 10))
         self.progress_label.pack(anchor='w', pady=(0, 5))
-        
-        self.progress = ttk.Progressbar(progress_frame, style='Horizontal.TProgressbar', 
-                                      mode='determinate', length=300)
+        self.progress = ttk.Progressbar(progress_frame, style='Horizontal.TProgressbar', mode='determinate', length=300)
         self.progress.pack(fill='x')
-        
-        # Results section
-        results_frame = ttk.Frame(main_frame, style='Dark.TFrame')
+
+        # Results section (now in right_panel)
+        results_frame = ttk.Frame(right_panel, style='Dark.TFrame')
         results_frame.pack(fill='x', pady=(20, 0))
-        
-        self.results_label = ttk.Label(results_frame, text="",
-                                     background='#1a1a1a', 
-                                     foreground='#4a9eff',
-                                     font=('Segoe UI', 11, 'bold'))
+        self.results_label = ttk.Label(results_frame, text="", background='#1a1a1a', foreground='#4a9eff', font=('Rockwell', 11, 'bold'))
         self.results_label.pack(anchor='w')
+
+        # Set initial state
+        self.select_decoder(self.selected_decoder_name)
     
     def setup_drag_drop(self):
         # Bind click event to drop zone
@@ -288,7 +312,7 @@ class VehicleGPSDecoder:
     def on_decoder_changed(self):
         """Handle decoder type change"""
         # Update drop label hint
-        decoder_name = self.selected_decoder_name.get()
+        decoder_name = self.selected_decoder_name # No .get() needed
         self.drop_label.configure(text=f"Drop {decoder_name} binary file here\nor click to browse")
         
         # Clear current file if any
@@ -300,7 +324,7 @@ class VehicleGPSDecoder:
             return
         
         # Get selected decoder
-        decoder_class = self.decoder_registry.get_decoder(self.selected_decoder_name.get())
+        decoder_class = self.decoder_registry.get_decoder(self.selected_decoder_name)
         decoder_instance = decoder_class()
         extensions = decoder_instance.get_supported_extensions()
         
@@ -308,11 +332,11 @@ class VehicleGPSDecoder:
         filetypes = []
         if extensions:
             ext_str = ";".join([f"*{ext}" for ext in extensions])
-            filetypes.append((f"{self.selected_decoder_name.get()} files", ext_str))
+            filetypes.append((f"{self.selected_decoder_name} files", ext_str))
         filetypes.append(("All files", "*.*"))
         
         file_path = filedialog.askopenfilename(
-            title=f"Select {self.selected_decoder_name.get()} Binary File",
+            title=f"Select {self.selected_decoder_name} Binary File",
             filetypes=filetypes
         )
         
@@ -335,7 +359,7 @@ class VehicleGPSDecoder:
             return
         
         self.input_file = None
-        decoder_name = self.selected_decoder_name.get()
+        decoder_name = self.selected_decoder_name
         self.drop_label.configure(text=f"Drop {decoder_name} binary file here\nor click to browse")
         self.file_info_label.configure(text="")
         self.process_btn.configure(state='disabled', style='Disabled.TButton')
@@ -354,12 +378,12 @@ class VehicleGPSDecoder:
         self.clear_btn.configure(state='disabled')
         
         # Get decoder
-        decoder_class = self.decoder_registry.get_decoder(self.selected_decoder_name.get())
+        decoder_class = self.decoder_registry.get_decoder(self.selected_decoder_name)
         self.current_decoder = decoder_class()
         
         # Generate output path
         base, _ = os.path.splitext(self.input_file)
-        output_path = f"{base}_{self.selected_decoder_name.get()}.xlsx"
+        output_path = f"{base}_{self.selected_decoder_name}.xlsx"
         
         # Start processing in a separate thread
         thread = threading.Thread(target=self.process_in_background, 
