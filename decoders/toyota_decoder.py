@@ -57,7 +57,7 @@ class ToyotaDecoder(BaseDecoder):
         return ['.CE0', '.bin']
     
     def get_dropzone_text(self) -> str:
-        return "Drop your Toyota NAND binary here\nor click to browse"
+        return "Drop your Toyota NAND binary\nhere or click to browse"
 
     def get_xlsx_headers(self) -> List[str]:
         # Toyota format has fewer columns than OnStar

@@ -16,7 +16,7 @@ class OnStarDecoder(BaseDecoder):
         return ['.CE0', '.bin']  # Support numbered CE0 files
     
     def get_dropzone_text(self) -> str:
-        return "Drop your OnStar NAND binary here\nor click to browse"
+        return "Drop your OnStar NAND binary\nhere or click to browse"
 
     def get_xlsx_headers(self) -> List[str]:
         return ['Latitude (Decimal)', 'Longitude (Decimal)', 'Year', 'Month', 'Day', 'Hour', 'Minute', 
