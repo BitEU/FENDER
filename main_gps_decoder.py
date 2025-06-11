@@ -110,6 +110,7 @@ class VehicleGPSDecoder:
         self.setup_styles()
         self.input_file = None
         self.is_processing = False
+        self.stop_event = threading.Event()  # <-- Add this line
 
         self.setup_ui()
         self.setup_drag_drop()
@@ -297,6 +298,8 @@ class VehicleGPSDecoder:
         self.process_btn.pack(side='left')
         self.clear_btn = ttk.Button(button_frame, text="Clear", style='Disabled.TButton', command=self.clear_file, state='disabled')
         self.clear_btn.pack(side='right')
+        self.stop_btn = ttk.Button(button_frame, text="Stop Processing", style='Disabled.TButton', command=self.stop_processing, state='disabled')
+        self.stop_btn.pack(side='right', padx=(0, 10))
 
         # Progress section
         progress_frame = ttk.Frame(right_panel, style='Dark.TFrame')
@@ -386,20 +389,25 @@ class VehicleGPSDecoder:
     def process_file(self):
         if not self.input_file or self.is_processing:
             return
-        
+    
+        # --- ADD THIS LINE ---
+        self.stop_event.clear()
+        # ---------------------
+    
         self.is_processing = True
         self.process_btn.configure(state='disabled', text='Processing...')
         self.browse_btn.configure(state='disabled')
         self.clear_btn.configure(state='disabled')
-        
+        self.stop_btn.configure(state='normal', style='Dark.TButton')
+    
         # Get decoder
         decoder_class = self.decoder_registry.get_decoder(self.selected_decoder_name)
         self.current_decoder = decoder_class()
-        
+    
         # Generate output path
         base, _ = os.path.splitext(self.input_file)
         output_path = f"{base}_{self.selected_decoder_name}.xlsx"
-        
+    
         # Start processing in a separate thread
         thread = threading.Thread(target=self.process_in_background, 
                                 args=(self.input_file, output_path))
@@ -409,11 +417,11 @@ class VehicleGPSDecoder:
     def process_in_background(self, input_path, output_path):
         def progress_callback(status, percent):
             self.root.after(0, self.update_progress, status, percent)
-        
+
         try:
-            # Extract GPS data using the decoder
+            # Pass stop_event to decoder
             entries, error = self.current_decoder.extract_gps_data(
-                input_path, progress_callback
+                input_path, progress_callback, stop_event=self.stop_event
             )
             
             if error:
@@ -454,6 +462,7 @@ class VehicleGPSDecoder:
         self.process_btn.configure(state='normal', text='Process File', style='Dark.TButton')
         self.browse_btn.configure(state='normal')
         self.clear_btn.configure(state='normal', style='Dark.TButton')
+        self.stop_btn.configure(state='disabled', style='Disabled.TButton')
         
         self.progress_label.configure(text="Processing complete!")
         self.progress['value'] = 100
@@ -468,12 +477,19 @@ class VehicleGPSDecoder:
         self.process_btn.configure(state='normal', text='Process File')
         self.browse_btn.configure(state='normal')
         self.clear_btn.configure(state='normal')
+        self.stop_btn.configure(state='disabled', style='Disabled.TButton')
         
         self.progress_label.configure(text="Processing failed!")
         self.progress['value'] = 0
         self.results_label.configure(text=f"✗ Error: {error_msg}")
         
         messagebox.showerror("Processing Error", f"Failed to process file:\n\n{error_msg}")
+    
+    def stop_processing(self):
+        if self.is_processing:
+            self.stop_event.set()
+            self.progress_label.configure(text="Stopping...")
+            self.stop_btn.configure(state='disabled', style='Disabled.TButton')
     
     def on_file_drop(self, event):
         if self.is_processing:

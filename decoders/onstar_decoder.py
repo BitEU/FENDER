@@ -38,31 +38,39 @@ class OnStarDecoder(BaseDecoder):
             entry.extra_data.get('lon_hex', '')
         ]
     
-    def extract_gps_data(self, file_path: str, progress_callback=None) -> Tuple[List[GPSEntry], Optional[str]]:
-        """Extract GPS data from OnStar binary file"""
+    def extract_gps_data(self, file_path: str, progress_callback=None, stop_event=None) -> Tuple[List[GPSEntry], Optional[str]]:
+        """Extract GPS data from OnStar binary file, with support for stopping."""
         try:
             if progress_callback:
                 progress_callback("Reading binary file...", 10)
-            
+            if stop_event and stop_event.is_set():
+                return [], "Processing stopped by user."
+
             with open(file_path, 'rb') as f:
                 data = f.read()
-            
+
             if progress_callback:
                 progress_callback("Finding GPS data blocks...", 30)
-            
+            if stop_event and stop_event.is_set():
+                return [], "Processing stopped by user."
+
             gps_blocks = self.find_gps_blocks_binary(data)
-            
+
             if progress_callback:
                 progress_callback(f"Parsing {len(gps_blocks)} GPS blocks...", 50)
-            
+            if stop_event and stop_event.is_set():
+                return [], "Processing stopped by user."
+
             entries = []
             for i, block in enumerate(gps_blocks):
+                if stop_event and stop_event.is_set():
+                    return entries, "Processing stopped by user."
+
                 entry_data = self.parse_gps_block(block)
                 if entry_data and self.is_valid_entry(entry_data):
-                    # Convert to standard GPSEntry - Fixed parameter names
                     gps_entry = GPSEntry(
-                        latitude=entry_data['lat'] if entry_data['lat'] != 'ERROR' else 0,  # Fixed: use 'latitude'
-                        longitude=entry_data['long'] if entry_data['long'] != 'ERROR' else 0,  # Fixed: use 'longitude'
+                        latitude=entry_data['lat'] if entry_data['lat'] != 'ERROR' else 0,
+                        longitude=entry_data['long'] if entry_data['long'] != 'ERROR' else 0,
                         timestamp=entry_data['timestamp_time'] if entry_data['timestamp_time'] != 'ERROR' else '',
                         extra_data={
                             'utc_year': entry_data.get('utc_year', ''),
@@ -75,16 +83,16 @@ class OnStarDecoder(BaseDecoder):
                         }
                     )
                     entries.append(gps_entry)
-                
+
                 if progress_callback and len(gps_blocks) > 0:
                     progress = 50 + (30 * (i + 1) // len(gps_blocks))
                     progress_callback(f"Parsing block {i+1}/{len(gps_blocks)}", progress)
-            
+
             if progress_callback:
                 progress_callback("Processing complete!", 90)
-            
+
             return entries, None
-            
+
         except FileNotFoundError:
             return [], f"File not found: {file_path}"
         except Exception as e:

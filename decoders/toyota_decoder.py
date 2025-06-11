@@ -66,44 +66,51 @@ class ToyotaDecoder(BaseDecoder):
     def format_entry_for_xlsx(self, entry: GPSEntry) -> List[Any]:
         """Format a GPSEntry into a row for the XLSX file"""
         return [
-            entry.lat if entry.lat != 0 else 'ERROR',
-            entry.long if entry.long != 0 else 'ERROR',
+            entry.latitude if entry.latitude != 0 else 'ERROR',
+            entry.longitude if entry.longitude != 0 else 'ERROR',
             entry.timestamp if entry.timestamp else 'ERROR',
             '', '', '', '', '', '', '', '', '', '', ''  # Eleven blank columns
         ]
     
-    def extract_gps_data(self, file_path: str, progress_callback=None) -> Tuple[List[GPSEntry], Optional[str]]:
-        """Extract GPS data from Toyota binary file"""
+    def extract_gps_data(self, file_path: str, progress_callback=None, stop_event=None) -> Tuple[List[GPSEntry], Optional[str]]:
+        """Extract GPS data from Toyota binary file, with support for stopping."""
         try:
             if progress_callback:
                 progress_callback("Reading binary file...", 10)
-            
+            if stop_event and stop_event.is_set():
+                return [], "Processing stopped by user."
+
             with open(file_path, 'rb') as f:
                 self.data = f.read()
-            
+
             if progress_callback:
                 progress_callback("Finding GPS data blocks...", 30)
-            
-            # Find base location markers
+            if stop_event and stop_event.is_set():
+                return [], "Processing stopped by user."
+
             base_positions = self.find_pattern_positions([self.MARKERS['location_base']])
-            
+
             if progress_callback:
                 progress_callback(f"Found {len(base_positions)} location markers", 40)
-            
-            # Find all data markers
+            if stop_event and stop_event.is_set():
+                return [], "Processing stopped by user."
+
             longitude_positions = self.find_pattern_positions(self.MARKERS['longitude'])
             latitude_positions = self.find_pattern_positions(self.MARKERS['latitude'])
             timestamp_positions = self.find_pattern_positions(self.MARKERS['timestamp'])
-            
+
             if progress_callback:
                 progress_callback("Extracting GPS data...", 50)
-            
-            # Clear previous locations
+            if stop_event and stop_event.is_set():
+                return [], "Processing stopped by user."
+
             self.locations = []
             entries = []
-            
-            # Extract data for each base position
+
             for i, base_pos in enumerate(base_positions):
+                if stop_event and stop_event.is_set():
+                    return entries, "Processing stopped by user."
+
                 # Find longitude
                 long_pos = self.find_valid_marker(
                     base_pos, longitude_positions, 
@@ -148,8 +155,8 @@ class ToyotaDecoder(BaseDecoder):
                     timestamp_str = self.format_timestamp(location_data.timestamp)
                     if timestamp_str and 'ERROR' not in timestamp_str:
                         entry = GPSEntry(
-                            lat=float(location_data.latitude),
-                            long=float(location_data.longitude),
+                            latitude=float(location_data.latitude),
+                            longitude=float(location_data.longitude),
                             timestamp=timestamp_str,
                             extra_data={'offset': base_pos}
                         )
@@ -158,12 +165,12 @@ class ToyotaDecoder(BaseDecoder):
                 if progress_callback and len(base_positions) > 0:
                     progress = 50 + (30 * (i + 1) // len(base_positions))
                     progress_callback(f"Processing location {i+1}/{len(base_positions)}", progress)
-            
+
             if progress_callback:
                 progress_callback("Processing complete!", 90)
-            
+
             return entries, None
-            
+
         except FileNotFoundError:
             return [], f"File not found: {file_path}"
         except Exception as e:
