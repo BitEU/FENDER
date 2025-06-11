@@ -294,4 +294,3 @@ logging.basicConfig(level=logging.DEBUG)
 ### Credits
 
 1. This project includes images created by [Iconoir](https://iconoir.com/). Copyright 2025 Iconoir
-2. This project includes software developed by [qnx6-extractor](https://github.com/ReFirmLabs/qnx6-extractor). Copyright 2020  ReFirm Labs
