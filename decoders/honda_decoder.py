@@ -47,8 +47,8 @@ class HondaDecoder(BaseDecoder):
     def format_entry_for_xlsx(self, entry: GPSEntry) -> List[Any]:
         """Format a GPSEntry into a row for the XLSX file"""
         return [
-            entry.lat if entry.lat != 0 else 'ERROR',
-            entry.long if entry.long != 0 else 'ERROR',
+            entry.latitude if entry.latitude != 0 else 'ERROR',
+            entry.longitude if entry.longitude != 0 else 'ERROR',
             entry.timestamp if entry.timestamp else 'ERROR',
             entry.extra_data.get('finish_pos_time', ''),
             entry.extra_data.get('finish_pos_lat', ''),
@@ -56,7 +56,7 @@ class HondaDecoder(BaseDecoder):
             '', '', '', '', '', '', '', '', ''  # Nine blank columns
         ]
     
-    def extract_gps_data(self, file_path: str, progress_callback=None) -> Tuple[List[GPSEntry], Optional[str]]:
+    def extract_gps_data(self, file_path: str, progress_callback=None, stop_event=None) -> Tuple[List[GPSEntry], Optional[str]]:
         """
         Extract GPS data from Honda Android image file
         
@@ -447,8 +447,8 @@ class HondaDecoder(BaseDecoder):
                 # Create entries for start position
                 if start_lat and start_lon and self._is_valid_coordinate(start_lat, start_lon):
                     entry = GPSEntry(
-                        lat=start_lat,
-                        long=start_lon,
+                        latitude=start_lat,
+                        longitude=start_lon,
                         timestamp=start_time,
                         extra_data=extra_data.copy()
                     )
@@ -469,8 +469,8 @@ class HondaDecoder(BaseDecoder):
                     }
                     
                     entry = GPSEntry(
-                        lat=finish_lat,
-                        long=finish_lon,
+                        latitude=finish_lat,
+                        longitude=finish_lon,
                         timestamp=finish_time,
                         extra_data=finish_extra_data
                     )
