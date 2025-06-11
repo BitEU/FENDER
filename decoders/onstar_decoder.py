@@ -19,7 +19,7 @@ class OnStarDecoder(BaseDecoder):
         return "Drop your OnStar NAND binary\nhere or click to browse"
 
     def get_xlsx_headers(self) -> List[str]:
-        return ['Latitude (Decimal)', 'Longitude (Decimal)', 'Year', 'Month', 'Day', 'Hour', 'Minute', 
+        return ['Latitude', 'Longitude', 'Year (UTC)', 'Month (UTC)', 'Day (UTC)', 'Hour (UTC)', 'Minute (UTC)', 
             'Epoch-Dervived Timestamp (UTC)', '', '', '', '', '', '', 'Latitude (Raw Hex)', 'Longitude (Raw Hex)']
     
     def format_entry_for_xlsx(self, entry: GPSEntry) -> List[Any]:
@@ -214,6 +214,11 @@ class OnStarDecoder(BaseDecoder):
                             entry['long'] = lon_decimal
                 except Exception:
                     entry['long'] = 'ERROR'
+
+            if lat_hex:
+                entry['lat_hex'] = format_hex_with_spaces(lat_hex)
+            if lon_hex:
+                entry['lon_hex'] = format_hex_with_spaces(lon_hex)
             
             return entry
         except Exception:
@@ -264,3 +269,6 @@ class OnStarDecoder(BaseDecoder):
                 pass
         
         return True
+
+def format_hex_with_spaces(hex_str):
+    return ' '.join(hex_str[i:i+2] for i in range(0, len(hex_str), 2))

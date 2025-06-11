@@ -39,9 +39,12 @@ class HondaDecoder(BaseDecoder):
     def get_xlsx_headers(self) -> List[str]:
         """Return column headers for the XLSX output file"""
         return [
-            'start_pos_lat', 'start_pos_lon', 'start_pos_time', 
-            'finish_pos_time', 'finish_pos_lat', 'finish_pos_lon',
-            '', '', '', '', '', '', '', '', ''
+            'Starting Latitude Position',
+            'Starting Longitude Position',
+            'Starting Time (UTC)',
+            'Finishing Time (UTC)',
+            'Finishing Latitude Position',
+            'Finishing Longitude Position'
         ]
     
     def format_entry_for_xlsx(self, entry: GPSEntry) -> List[Any]:

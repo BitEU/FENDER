@@ -61,7 +61,7 @@ class ToyotaDecoder(BaseDecoder):
 
     def get_xlsx_headers(self) -> List[str]:
         # Toyota format has fewer columns than OnStar
-        return ['Latitude', 'Longitude', 'Timestamp'] + [''] * 11  # 11 blank columns
+        return ['Latitude', 'Longitude', 'Timestamp (UTC)'] + [''] * 11  # 11 blank columns
     
     def format_entry_for_xlsx(self, entry: GPSEntry) -> List[Any]:
         """Format a GPSEntry into a row for the XLSX file"""
