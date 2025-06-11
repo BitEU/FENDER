@@ -1,5 +1,3 @@
 Compile into single file:
 
-
-
 python -m PyInstaller --onefile --windowed --icon=car.ico --add-data "decoders;decoders" --add-data "base_decoder.py;." --add-data "car.ico;." --hidden-import="tkinterdnd2" --hidden-import="decoders.honda_decoder" --hidden-import="decoders.onstar_decoder" --hidden-import="decoders.toyota_decoder" main_gps_decoder.py
