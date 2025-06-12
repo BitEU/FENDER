@@ -315,15 +315,12 @@ pytest test_main.py -v --log-cli-level=DEBUG
 
 ## **Todo**
 
-* Add stop processing feature to Honda decoder
 * Optimizing speed and efficiency
 * Plotting points on an interactive map
 * Include more data than just timestamps and geolocation
 * Batch processing
-* Permit users to export to CSV or JSON, not just XLSX
 * Use SHA256 to hash disk images as well as the reports
-* Include timestamp of report generation in filename
-* Include details of extraction, device configuration, python configuration in reports in seperste worksheet
+* Include details of extraction, device configuration, python configuration in reports
 * Implement anomoly detection to flag any rows that arent in line eith the rest of the data
 * Use tempfile and shutil for more secure file handling
 * Make this program compliant with leading guidelines (ISO 27037? NIST 800-86?)

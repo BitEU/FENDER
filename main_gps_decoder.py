@@ -3,6 +3,8 @@ from tkinter import ttk, filedialog, messagebox
 import threading
 import os
 import sys
+import json
+import csv
 from pathlib import Path
 from tkinterdnd2 import DND_FILES, TkinterDnD
 from openpyxl import Workbook
@@ -11,6 +13,7 @@ import argparse
 from typing import List, Dict, Type
 import importlib
 import inspect
+from datetime import datetime
 
 # Import base decoder
 from base_decoder import BaseDecoder, GPSEntry
@@ -88,7 +91,7 @@ class VehicleGPSDecoder:
     def __init__(self, root):
         self.root = root
         self.root.title("FENDER")
-        self.root.geometry("1150x600")
+        self.root.geometry("1200x700")  # Slightly larger to accommodate new options
         self.root.configure(bg='#1a1a1a')
         
         # Initialize decoder registry
@@ -106,11 +109,12 @@ class VehicleGPSDecoder:
         self.current_decoder = None
         self.selected_decoder_name = decoder_names[0]
         self.decoder_buttons = {}
+        self.export_format = tk.StringVar(value="xlsx")  # Default to XLSX
 
         self.setup_styles()
         self.input_file = None
         self.is_processing = False
-        self.stop_event = threading.Event()  # <-- Add this line
+        self.stop_event = threading.Event()
 
         self.setup_ui()
         self.setup_drag_drop()
@@ -277,6 +281,34 @@ class VehicleGPSDecoder:
         subtitle_label = ttk.Label(header_frame, text="Extract and decode GPS data with timestamps from vehicle telematics binary files", style='Subtitle.TLabel')
         subtitle_label.pack(anchor='w', pady=(5, 0))
 
+        # Export format selection
+        export_frame = ttk.Frame(right_panel, style='Dark.TFrame')
+        export_frame.pack(fill='x', pady=(0, 15))
+        
+        export_label = ttk.Label(export_frame, text="Export Format:",
+                                background='#1a1a1a', foreground='#ffffff',
+                                font=('Segoe UI', 12, 'bold'))
+        export_label.pack(anchor='w', pady=(0, 5))
+        
+        format_frame = ttk.Frame(export_frame, style='Dark.TFrame')
+        format_frame.pack(anchor='w')
+        
+        # Radio buttons for export format
+        xlsx_radio = ttk.Radiobutton(format_frame, text="Excel (.xlsx)", 
+                                    variable=self.export_format, value="xlsx",
+                                    style='Dark.TRadiobutton')
+        xlsx_radio.pack(side='left', padx=(0, 15))
+        
+        csv_radio = ttk.Radiobutton(format_frame, text="CSV (.csv)", 
+                                   variable=self.export_format, value="csv",
+                                   style='Dark.TRadiobutton')
+        csv_radio.pack(side='left', padx=(0, 15))
+        
+        json_radio = ttk.Radiobutton(format_frame, text="JSON (.json)", 
+                                    variable=self.export_format, value="json",
+                                    style='Dark.TRadiobutton')
+        json_radio.pack(side='left')
+
         # Drop zone
         self.drop_frame = ttk.Frame(right_panel, style='DropZone.TFrame')
         self.drop_frame.pack(fill='both', expand=True, pady=(0, 20))
@@ -386,14 +418,18 @@ class VehicleGPSDecoder:
         self.results_label.configure(text="")
         self.clear_btn.configure(state='disabled', style='Disabled.TButton')
     
+    def generate_timestamped_filename(self, base_path: str, decoder_name: str, format_ext: str) -> str:
+        """Generate filename with timestamp"""
+        base, _ = os.path.splitext(base_path)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return f"{base}_{decoder_name}_{timestamp}.{format_ext}"
+    
     def process_file(self):
         if not self.input_file or self.is_processing:
             return
     
-        # --- ADD THIS LINE ---
         self.stop_event.clear()
-        # ---------------------
-    
+        
         self.is_processing = True
         self.process_btn.configure(state='disabled', text='Processing...')
         self.browse_btn.configure(state='disabled')
@@ -404,9 +440,9 @@ class VehicleGPSDecoder:
         decoder_class = self.decoder_registry.get_decoder(self.selected_decoder_name)
         self.current_decoder = decoder_class()
     
-        # Generate output path
-        base, _ = os.path.splitext(self.input_file)
-        output_path = f"{base}_{self.selected_decoder_name}.xlsx"
+        # Generate output path with timestamp and selected format
+        format_ext = self.export_format.get()
+        output_path = self.generate_timestamped_filename(self.input_file, self.selected_decoder_name, format_ext)
     
         # Start processing in a separate thread
         thread = threading.Thread(target=self.process_in_background, 
@@ -427,9 +463,17 @@ class VehicleGPSDecoder:
             if error:
                 self.root.after(0, self.processing_error, error)
             else:
-                # Write to XLSX
-                self.root.after(0, self.update_progress, "Writing XLSX file...", 85)
-                self.write_xlsx(entries, output_path)
+                # Write to selected format
+                format_type = self.export_format.get()
+                self.root.after(0, self.update_progress, f"Writing {format_type.upper()} file...", 85)
+                
+                if format_type == "xlsx":
+                    self.write_xlsx(entries, output_path)
+                elif format_type == "csv":
+                    self.write_csv(entries, output_path)
+                elif format_type == "json":
+                    self.write_json(entries, output_path)
+                
                 self.root.after(0, self.processing_complete, len(entries), output_path)
                 
         except Exception as e:
@@ -452,6 +496,56 @@ class VehicleGPSDecoder:
         
         wb.save(output_path)
     
+    def write_csv(self, entries: List[GPSEntry], output_path: str):
+        """Write GPS entries to CSV file"""
+        headers = self.current_decoder.get_xlsx_headers()  # Reuse XLSX headers
+        
+        with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            
+            # Write headers
+            writer.writerow(headers)
+            
+            # Write entries
+            for entry in entries:
+                row = self.current_decoder.format_entry_for_xlsx(entry)
+                writer.writerow(row)
+    
+    def write_json(self, entries: List[GPSEntry], output_path: str):
+        """Write GPS entries to JSON file"""
+        json_data = {
+            "metadata": {
+                "decoder": self.selected_decoder_name,
+                "extraction_timestamp": datetime.now().isoformat(),
+                "total_entries": len(entries)
+            },
+            "gps_entries": []
+        }
+        
+        headers = self.current_decoder.get_xlsx_headers()
+        
+        for entry in entries:
+            row = self.current_decoder.format_entry_for_xlsx(entry)
+            entry_dict = {}
+            
+            # Map row data to headers
+            for i, header in enumerate(headers):
+                if i < len(row):
+                    entry_dict[header] = row[i]
+            
+            # Add core GPS data
+            entry_dict.update({
+                "latitude": entry.latitude,
+                "longitude": entry.longitude,
+                "timestamp": entry.timestamp,
+                "extra_data": entry.extra_data
+            })
+            
+            json_data["gps_entries"].append(entry_dict)
+        
+        with open(output_path, 'w', encoding='utf-8') as jsonfile:
+            json.dump(json_data, jsonfile, indent=2, ensure_ascii=False, default=str)
+    
     def update_progress(self, status, percent):
         self.progress_label.configure(text=status)
         self.progress['value'] = percent
@@ -467,8 +561,9 @@ class VehicleGPSDecoder:
         self.progress_label.configure(text="Processing complete!")
         self.progress['value'] = 100
         
-        xlsx_filename = os.path.basename(output_path)
-        result_text = f"✓ Successfully extracted {entry_count} GPS entries to:\n {xlsx_filename}"
+        output_filename = os.path.basename(output_path)
+        format_type = self.export_format.get().upper()
+        result_text = f"✓ Successfully extracted {entry_count} GPS entries to {format_type}:\n {output_filename}"
         
         self.results_label.configure(text=result_text)
     
@@ -499,7 +594,7 @@ class VehicleGPSDecoder:
             self.set_input_file(file_path)
 
 def run_cli():
-    """Run the CLI version"""
+    """Run the CLI version with enhanced export options"""
     print("Vehicle GPS Decoder - CLI Mode")
     print("=" * 40)
     
@@ -527,6 +622,24 @@ def run_cli():
         except ValueError:
             print("Please enter a valid number.")
     
+    # Select export format
+    print("\nExport formats:")
+    print("1. Excel (.xlsx)")
+    print("2. CSV (.csv)")
+    print("3. JSON (.json)")
+    
+    format_map = {1: "xlsx", 2: "csv", 3: "json"}
+    while True:
+        try:
+            format_choice = int(input("\nSelect export format (enter number): "))
+            if 1 <= format_choice <= 3:
+                export_format = format_map[format_choice]
+                break
+            else:
+                print("Invalid choice. Please try again.")
+        except ValueError:
+            print("Please enter a valid number.")
+    
     # Get file path
     input_file = input(f"\nEnter the path to the {selected_decoder} file: ").strip()
     if not os.path.isfile(input_file):
@@ -537,8 +650,10 @@ def run_cli():
     decoder_class = registry.get_decoder(selected_decoder)
     decoder = decoder_class()
     
+    # Generate timestamped output filename
     base, _ = os.path.splitext(input_file)
-    output_file = f"{base}_{selected_decoder}.xlsx"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file = f"{base}_{selected_decoder}_{timestamp}.{export_format}"
     
     print(f"\nProcessing {selected_decoder} file...")
     
@@ -550,19 +665,64 @@ def run_cli():
     if error:
         print(f"Error: {error}")
     else:
-        # Write XLSX
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "GPS Data"
+        # Write to selected format
+        if export_format == "xlsx":
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "GPS Data"
+            
+            headers = decoder.get_xlsx_headers()
+            ws.append(headers)
+            
+            for entry in entries:
+                row = decoder.format_entry_for_xlsx(entry)
+                ws.append(row)
+            
+            wb.save(output_file)
+            
+        elif export_format == "csv":
+            headers = decoder.get_xlsx_headers()
+            
+            with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(headers)
+                
+                for entry in entries:
+                    row = decoder.format_entry_for_xlsx(entry)
+                    writer.writerow(row)
+                    
+        elif export_format == "json":
+            json_data = {
+                "metadata": {
+                    "decoder": selected_decoder,
+                    "extraction_timestamp": datetime.now().isoformat(),
+                    "total_entries": len(entries)
+                },
+                "gps_entries": []
+            }
+            
+            headers = decoder.get_xlsx_headers()
+            
+            for entry in entries:
+                row = decoder.format_entry_for_xlsx(entry)
+                entry_dict = {}
+                
+                for i, header in enumerate(headers):
+                    if i < len(row):
+                        entry_dict[header] = row[i]
+                
+                entry_dict.update({
+                    "latitude": entry.latitude,
+                    "longitude": entry.longitude,
+                    "timestamp": entry.timestamp,
+                    "extra_data": entry.extra_data
+                })
+                
+                json_data["gps_entries"].append(entry_dict)
+            
+            with open(output_file, 'w', encoding='utf-8') as jsonfile:
+                json.dump(json_data, jsonfile, indent=2, ensure_ascii=False, default=str)
         
-        headers = decoder.get_xlsx_headers()
-        ws.append(headers)
-        
-        for entry in entries:
-            row = decoder.format_entry_for_xlsx(entry)
-            ws.append(row)
-        
-        wb.save(output_file)
         print(f"\nSuccessfully extracted {len(entries)} GPS entries.")
         print(f"Results written to: {output_file}")
 

@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sys
 import struct
 import sqlite3
@@ -66,6 +66,7 @@ class HondaDecoder(BaseDecoder):
         Args:
             file_path: Path to the Honda Android image file
             progress_callback: Optional callback for progress updates
+            stop_event: Optional threading.Event to signal stop processing
             
         Returns:
             Tuple of (GPS entries list, error message or None)
@@ -79,6 +80,10 @@ class HondaDecoder(BaseDecoder):
             if progress_callback:
                 progress_callback("Analyzing Honda Android image...", 5)
             
+            # Check for stop signal
+            if stop_event and stop_event.is_set():
+                return [], "Processing stopped by user."
+            
             # Validate file exists and has reasonable size
             if not os.path.exists(file_path):
                 return [], f"File not found: {file_path}"
@@ -90,8 +95,12 @@ class HondaDecoder(BaseDecoder):
             if progress_callback:
                 progress_callback("Searching for userdata partition...", 10)
             
+            # Check for stop signal
+            if stop_event and stop_event.is_set():
+                return [], "Processing stopped by user."
+            
             # Find userdata partition
-            partition_info = self._find_partition_by_name(file_path, "userdata")
+            partition_info = self._find_partition_by_name(file_path, "userdata", stop_event)
             if not partition_info:
                 return [], "Could not find userdata partition in Android image. This may not be a valid Honda Android image."
             
@@ -100,16 +109,28 @@ class HondaDecoder(BaseDecoder):
             if progress_callback:
                 progress_callback("Found userdata partition, extracting filesystem...", 20)
             
+            # Check for stop signal
+            if stop_event and stop_event.is_set():
+                return [], "Processing stopped by user."
+            
             # Extract CRM database
-            crm_db_path = self._extract_crm_database(file_path, offset, size, progress_callback)
+            crm_db_path = self._extract_crm_database(file_path, offset, size, progress_callback, stop_event)
             if not crm_db_path:
                 return [], "Could not extract Honda CRM database from image. The database may not exist or be accessible."
+            
+            # Check for stop signal before database processing
+            if stop_event and stop_event.is_set():
+                return [], "Processing stopped by user."
             
             if progress_callback:
                 progress_callback("Processing CRM database...", 60)
             
             # Extract GPS data from database
-            entries = self._process_crm_database(crm_db_path, progress_callback)
+            entries = self._process_crm_database(crm_db_path, progress_callback, stop_event)
+            
+            # Check for stop signal after database processing
+            if stop_event and stop_event.is_set():
+                return entries, "Processing stopped by user."  # Return partial results
             
             if not entries:
                 return [], "No GPS data found in Honda CRM database. The eco_logs table may be empty or missing."
@@ -126,17 +147,25 @@ class HondaDecoder(BaseDecoder):
             self._cleanup_temp_files()
             return [], f"Error processing Honda image: {str(e)}"
     
-    def _find_partition_by_name(self, image_path: str, partition_name: str = "userdata") -> Optional[Tuple[int, int]]:
+    def _find_partition_by_name(self, image_path: str, partition_name: str = "userdata", stop_event=None) -> Optional[Tuple[int, int]]:
         """Find partition offset and size by scanning for GPT or ext4 patterns"""
         try:
             with open(image_path, 'rb') as f:
+                # Check for stop signal
+                if stop_event and stop_event.is_set():
+                    return None
+                
                 # Try to find GPT header first
-                gpt_result = self._find_gpt_partition(f, partition_name)
+                gpt_result = self._find_gpt_partition(f, partition_name, stop_event)
                 if gpt_result[0] is not None:
                     return gpt_result
                 
+                # Check for stop signal
+                if stop_event and stop_event.is_set():
+                    return None
+                
                 # Try to find ext4 signature directly
-                ext4_result = self._find_ext4_partition(f)
+                ext4_result = self._find_ext4_partition(f, stop_event)
                 if ext4_result[0] is not None:
                     return ext4_result
             
@@ -144,9 +173,13 @@ class HondaDecoder(BaseDecoder):
         except Exception:
             return None
     
-    def _find_gpt_partition(self, f: BinaryIO, partition_name: str) -> Tuple[Optional[int], Optional[int]]:
+    def _find_gpt_partition(self, f: BinaryIO, partition_name: str, stop_event=None) -> Tuple[Optional[int], Optional[int]]:
         """Find partition using GPT (GUID Partition Table)"""
         try:
+            # Check for stop signal
+            if stop_event and stop_event.is_set():
+                return None, None
+            
             # GPT header is at LBA 1 (sector size 512)
             f.seek(512)
             gpt_header = f.read(92)
@@ -163,6 +196,10 @@ class HondaDecoder(BaseDecoder):
             f.seek(partition_entries_lba * 512)
             
             for i in range(min(num_partitions, 128)):  # Reasonable limit
+                # Check for stop signal periodically
+                if stop_event and stop_event.is_set():
+                    return None, None
+                
                 entry = f.read(partition_entry_size)
                 if len(entry) < 128:
                     break
@@ -192,7 +229,7 @@ class HondaDecoder(BaseDecoder):
         
         return None, None
     
-    def _find_ext4_partition(self, f: BinaryIO) -> Tuple[Optional[int], Optional[int]]:
+    def _find_ext4_partition(self, f: BinaryIO, stop_event=None) -> Tuple[Optional[int], Optional[int]]:
         """Find ext4 partition by scanning for superblock signature"""
         try:
             # Get file size
@@ -206,6 +243,10 @@ class HondaDecoder(BaseDecoder):
             max_search = min(file_size, 500 * 1024 * 1024)  # Search first 500MB
             
             for offset in range(0, max_search, chunk_size):
+                # Check for stop signal
+                if stop_event and stop_event.is_set():
+                    return None, None
+                
                 f.seek(offset)
                 chunk = f.read(min(chunk_size, max_search - offset))
                 
@@ -234,9 +275,13 @@ class HondaDecoder(BaseDecoder):
         
         return None, None
     
-    def _extract_crm_database(self, image_path: str, offset: int, size: int, progress_callback=None) -> Optional[str]:
+    def _extract_crm_database(self, image_path: str, offset: int, size: int, progress_callback=None, stop_event=None) -> Optional[str]:
         """Extract the Honda CRM database from the Android image"""
         try:
+            # Check for stop signal
+            if stop_event and stop_event.is_set():
+                return None
+            
             # Create temporary file for partition
             temp_partition = tempfile.NamedTemporaryFile(delete=False, suffix='.img')
             self.temp_files.append(temp_partition.name)
@@ -244,13 +289,18 @@ class HondaDecoder(BaseDecoder):
             if progress_callback:
                 progress_callback("Extracting userdata partition...", 25)
             
-            # Extract partition to temporary file
+            # Extract partition to temporary file with stop checking
             with open(image_path, 'rb') as src:
                 src.seek(offset)
                 remaining = size
                 chunk_size = 8 * 1024 * 1024  # 8MB chunks
                 
                 while remaining > 0:
+                    # Check for stop signal during extraction
+                    if stop_event and stop_event.is_set():
+                        temp_partition.close()
+                        return None
+                    
                     read_size = min(chunk_size, remaining)
                     chunk = src.read(read_size)
                     if not chunk:
@@ -260,6 +310,10 @@ class HondaDecoder(BaseDecoder):
             
             temp_partition.close()
             
+            # Check for stop signal
+            if stop_event and stop_event.is_set():
+                return None
+            
             if progress_callback:
                 progress_callback("Opening partition with TSK...", 35)
             
@@ -268,14 +322,14 @@ class HondaDecoder(BaseDecoder):
             fs = pytsk3.FS_Info(img)
             
             # Try to extract CRM database
-            crm_db_path = self._try_extract_crm_paths(fs, progress_callback)
+            crm_db_path = self._try_extract_crm_paths(fs, progress_callback, stop_event)
             
             return crm_db_path
                 
         except Exception:
             return None
     
-    def _try_extract_crm_paths(self, fs, progress_callback=None) -> Optional[str]:
+    def _try_extract_crm_paths(self, fs, progress_callback=None, stop_event=None) -> Optional[str]:
         """Try extracting CRM database from multiple possible paths"""
         
         # Common paths where Honda CRM database might be located
@@ -289,6 +343,10 @@ class HondaDecoder(BaseDecoder):
         ]
         
         for i, search_path in enumerate(search_paths):
+            # Check for stop signal
+            if stop_event and stop_event.is_set():
+                return None
+            
             try:
                 if progress_callback:
                     progress_callback(f"Trying path {i+1}/{len(search_paths)}: {search_path}", 40 + i * 2)
@@ -310,16 +368,20 @@ class HondaDecoder(BaseDecoder):
             except Exception:
                 continue
         
+        # Check for stop signal before recursive search
+        if stop_event and stop_event.is_set():
+            return None
+        
         # If direct paths fail, try recursive search
         if progress_callback:
             progress_callback("Starting recursive search for crm.db...", 50)
         
-        return self._recursive_search_crm(fs)
+        return self._recursive_search_crm(fs, stop_event)
     
-    def _recursive_search_crm(self, fs) -> Optional[str]:
+    def _recursive_search_crm(self, fs, stop_event=None) -> Optional[str]:
         """Recursively search for crm.db files"""
         try:
-            if self._search_directory(fs, fs.open_dir("/"), "/", 0):
+            if self._search_directory(fs, fs.open_dir("/"), "/", 0, stop_event):
                 # Return the last created temp file (should be crm.db)
                 for temp_file in reversed(self.temp_files):
                     if temp_file.endswith('.db'):
@@ -328,13 +390,21 @@ class HondaDecoder(BaseDecoder):
         except Exception:
             return None
     
-    def _search_directory(self, fs, directory, current_path: str, depth: int) -> bool:
-        """Search directory recursively with depth limit"""
+    def _search_directory(self, fs, directory, current_path: str, depth: int, stop_event=None) -> bool:
+        """Search directory recursively with depth limit and stop checking"""
         if depth > 10:  # Prevent infinite recursion
+            return False
+        
+        # Check for stop signal
+        if stop_event and stop_event.is_set():
             return False
             
         try:
             for entry in directory:
+                # Check for stop signal during directory iteration
+                if stop_event and stop_event.is_set():
+                    return False
+                
                 entry_name = entry.info.name.name.decode('utf-8', errors='ignore')
                 
                 if entry_name in ['.', '..']:
@@ -371,7 +441,7 @@ class HondaDecoder(BaseDecoder):
                     
                     try:
                         sub_dir = fs.open_dir(full_path)
-                        if self._search_directory(fs, sub_dir, full_path, depth + 1):
+                        if self._search_directory(fs, sub_dir, full_path, depth + 1, stop_event):
                             return True
                     except Exception:
                         continue
@@ -381,11 +451,15 @@ class HondaDecoder(BaseDecoder):
         
         return False
     
-    def _process_crm_database(self, crm_db_path: str, progress_callback=None) -> List[GPSEntry]:
+    def _process_crm_database(self, crm_db_path: str, progress_callback=None, stop_event=None) -> List[GPSEntry]:
         """Process the eco_logs table and convert to GPSEntry objects"""
         entries = []
         
         try:
+            # Check for stop signal
+            if stop_event and stop_event.is_set():
+                return entries
+            
             # Connect to the SQLite database
             conn = sqlite3.connect(crm_db_path)
             cursor = conn.cursor()
@@ -398,6 +472,11 @@ class HondaDecoder(BaseDecoder):
             
             if progress_callback:
                 progress_callback("Reading eco_logs table...", 70)
+            
+            # Check for stop signal
+            if stop_event and stop_event.is_set():
+                conn.close()
+                return entries
             
             # Check available columns
             cursor.execute("PRAGMA table_info(eco_logs);")
@@ -425,7 +504,12 @@ class HondaDecoder(BaseDecoder):
                 progress_callback(f"Processing {len(rows)} records...", 80)
             
             # Convert rows to GPSEntry objects
-            for row_data in rows:
+            for i, row_data in enumerate(rows):
+                # Check for stop signal during processing
+                if stop_event and stop_event.is_set():
+                    conn.close()
+                    return entries  # Return partial results
+                
                 row_dict = dict(zip(available_required, row_data))
                 
                 # Extract coordinates and timestamps
@@ -478,6 +562,11 @@ class HondaDecoder(BaseDecoder):
                         extra_data=finish_extra_data
                     )
                     entries.append(entry)
+                
+                # Update progress periodically
+                if progress_callback and i % 10 == 0 and len(rows) > 0:
+                    progress = 80 + (10 * i // len(rows))
+                    progress_callback(f"Processing record {i+1}/{len(rows)}", progress)
             
             conn.close()
             
