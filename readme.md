@@ -315,6 +315,7 @@ pytest test_main.py -v --log-cli-level=DEBUG
 
 ## **Todo**
 
+* Add stop processing feature to Honda decoder
 * Optimizing speed and efficiency
 * Plotting points on an interactive map
 * Include more data than just timestamps and geolocation
