@@ -14,13 +14,71 @@ from typing import List, Dict, Type
 import importlib
 import inspect
 from datetime import datetime
+import hashlib
 
 # Import base decoder
 from base_decoder import BaseDecoder, GPSEntry
 
+# FENDER Version Information
+FENDER_VERSION = "1.1.5"
+FENDER_BUILD_DATE = "June 11 2025"
+
 if platform.system() == "Windows":
     import ctypes
     from ctypes import windll
+
+def get_system_info():
+    """Gather system and configuration information for reports"""
+    return {
+        "fender_version": FENDER_VERSION,
+        "fender_build_date": FENDER_BUILD_DATE,
+        "extraction_timestamp": datetime.now().isoformat(),
+        "python_version": sys.version,
+        "python_executable": sys.executable,
+        "platform_system": platform.system(),
+        "platform_release": platform.release(),
+        "platform_version": platform.version(),
+        "platform_machine": platform.machine(),
+        "platform_processor": platform.processor(),
+        "hostname": platform.node(),
+    }
+
+def get_file_hash(file_path: str) -> str:
+    """Calculate SHA256 hash of the input file"""
+    try:
+        sha256_hash = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            # Read file in chunks to handle large files
+            for chunk in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(chunk)
+        return sha256_hash.hexdigest()
+    except Exception as e:
+        return f"Error calculating hash: {str(e)}"
+
+def get_extraction_info(decoder_name: str, input_file: str, output_file: str, entry_count: int, processing_time: float = None):
+    """Gather extraction-specific information"""
+    file_size = os.path.getsize(input_file) if os.path.exists(input_file) else 0
+    
+    extraction_info = {
+        "input_file": {
+            "path": input_file,
+            "filename": os.path.basename(input_file),
+            "size_bytes": file_size,
+            "size_mb": round(file_size / (1024 * 1024), 2),
+            "sha256_hash": get_file_hash(input_file)
+        },
+        "output_file": {
+            "path": output_file,
+            "filename": os.path.basename(output_file)
+        },
+        "extraction_details": {
+            "decoder_used": decoder_name,
+            "entries_extracted": entry_count,
+            "processing_time_seconds": processing_time,
+        }
+    }
+    
+    return extraction_info
 
 def get_resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""
@@ -90,9 +148,10 @@ class DecoderRegistry:
 class VehicleGPSDecoder:
     def __init__(self, root):
         self.root = root
-        self.root.title("FENDER")
+        self.root.title(f"FENDER v{FENDER_VERSION}")
         self.root.geometry("1200x700")  # Slightly larger to accommodate new options
         self.root.configure(bg='#1a1a1a')
+        self.processing_start_time = None
         
         # Initialize decoder registry
         self.decoder_registry = DecoderRegistry()
@@ -430,6 +489,7 @@ class VehicleGPSDecoder:
     
         self.stop_event.clear()
         
+        self.processing_start_time = datetime.now()
         self.is_processing = True
         self.process_btn.configure(state='disabled', text='Processing...')
         self.browse_btn.configure(state='disabled')
@@ -480,59 +540,171 @@ class VehicleGPSDecoder:
             self.root.after(0, self.processing_error, str(e))
     
     def write_xlsx(self, entries: List[GPSEntry], output_path: str):
-        """Write GPS entries to XLSX file using decoder-specific format"""
+        """Write GPS entries to XLSX file using decoder-specific format with extraction details"""
         wb = Workbook()
-        ws = wb.active
-        ws.title = "GPS Data"
-        
+    
+        # Main GPS Data worksheet
+        ws_data = wb.active
+        ws_data.title = "GPS Data"
+    
         # Get headers from decoder
         headers = self.current_decoder.get_xlsx_headers()
-        ws.append(headers)
-        
+        ws_data.append(headers)
+    
         # Write entries
         for entry in entries:
             row = self.current_decoder.format_entry_for_xlsx(entry)
-            ws.append(row)
-        
+            ws_data.append(row)
+    
+        # Create Extraction Details worksheet
+        ws_details = wb.create_sheet("Extraction Details")
+    
+        # Get system and extraction info
+        system_info = get_system_info()
+        processing_time = (datetime.now() - self.processing_start_time).total_seconds() if self.processing_start_time else None
+        extraction_info = get_extraction_info(
+            self.selected_decoder_name, 
+            self.input_file, 
+            output_path, 
+            len(entries),
+            processing_time
+        )
+    
+        # Write extraction details
+        ws_details.append(["FENDER Extraction Report"])
+        ws_details.append([])  # Empty row
+    
+        # System Information
+        ws_details.append(["System Information"])
+        ws_details.append(["Field", "Value"])
+        for key, value in system_info.items():
+            ws_details.append([key.replace("_", " ").title(), str(value)])
+    
+        ws_details.append([])  # Empty row
+    
+        # Extraction Information
+        ws_details.append(["Extraction Information"])
+        ws_details.append(["Field", "Value"])
+    
+        # Input file details
+        ws_details.append(["Input File Path", extraction_info["input_file"]["path"]])
+        ws_details.append(["Input File Name", extraction_info["input_file"]["filename"]])
+        ws_details.append(["Input File Size (MB)", extraction_info["input_file"]["size_mb"]])
+        ws_details.append(["Input File SHA256", extraction_info["input_file"]["sha256_hash"]])
+    
+        # Output file details
+        ws_details.append(["Output File Path", extraction_info["output_file"]["path"]])
+        ws_details.append(["Output File Name", extraction_info["output_file"]["filename"]])
+    
+        # Extraction details
+        ws_details.append(["Decoder Used", extraction_info["extraction_details"]["decoder_used"]])
+        ws_details.append(["Entries Extracted", extraction_info["extraction_details"]["entries_extracted"]])
+        if processing_time:
+            ws_details.append(["Processing Time (seconds)", round(processing_time, 2)])
+    
+        # Format the details worksheet
+        ws_details.column_dimensions['A'].width = 25
+        ws_details.column_dimensions['B'].width = 50
+    
         wb.save(output_path)
     
     def write_csv(self, entries: List[GPSEntry], output_path: str):
-        """Write GPS entries to CSV file"""
+        """Write GPS entries to CSV file with extraction details"""
         headers = self.current_decoder.get_xlsx_headers()  # Reuse XLSX headers
-        
+    
+        # Get system and extraction info
+        system_info = get_system_info()
+        processing_time = (datetime.now() - self.processing_start_time).total_seconds() if self.processing_start_time else None
+        extraction_info = get_extraction_info(
+            self.selected_decoder_name, 
+            self.input_file, 
+            output_path, 
+            len(entries),
+            processing_time
+        )
+    
         with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
             writer = csv.writer(csvfile)
-            
+        
             # Write headers
             writer.writerow(headers)
-            
+        
             # Write entries
             for entry in entries:
                 row = self.current_decoder.format_entry_for_xlsx(entry)
                 writer.writerow(row)
+        
+            # Add 50 empty rows
+            for _ in range(50):
+                writer.writerow([])
+        
+            # Write extraction details
+            writer.writerow(["FENDER Extraction Report"])
+            writer.writerow([])
+        
+            # System Information
+            writer.writerow(["System Information"])
+            writer.writerow(["Field", "Value"])
+            for key, value in system_info.items():
+                writer.writerow([key.replace("_", " ").title(), str(value)])
+        
+            writer.writerow([])
+        
+            # Extraction Information
+            writer.writerow(["Extraction Information"])
+            writer.writerow(["Field", "Value"])
+        
+            # Input file details
+            writer.writerow(["Input File Path", extraction_info["input_file"]["path"]])
+            writer.writerow(["Input File Name", extraction_info["input_file"]["filename"]])
+            writer.writerow(["Input File Size (MB)", extraction_info["input_file"]["size_mb"]])
+            writer.writerow(["Input File SHA256", extraction_info["input_file"]["sha256_hash"]])
+        
+            # Output file details
+            writer.writerow(["Output File Path", extraction_info["output_file"]["path"]])
+            writer.writerow(["Output File Name", extraction_info["output_file"]["filename"]])
+        
+            # Extraction details
+            writer.writerow(["Decoder Used", extraction_info["extraction_details"]["decoder_used"]])
+            writer.writerow(["Entries Extracted", extraction_info["extraction_details"]["entries_extracted"]])
+            if processing_time:
+                writer.writerow(["Processing Time (seconds)", round(processing_time, 2)])
     
     def write_json(self, entries: List[GPSEntry], output_path: str):
-        """Write GPS entries to JSON file"""
+        """Write GPS entries to JSON file with extraction details"""
+        # Get system and extraction info
+        system_info = get_system_info()
+        processing_time = (datetime.now() - self.processing_start_time).total_seconds() if self.processing_start_time else None
+        extraction_info = get_extraction_info(
+            self.selected_decoder_name, 
+            self.input_file, 
+            output_path, 
+            len(entries),
+            processing_time
+        )
+    
         json_data = {
             "metadata": {
                 "decoder": self.selected_decoder_name,
                 "extraction_timestamp": datetime.now().isoformat(),
                 "total_entries": len(entries)
             },
+            "system_information": system_info,
+            "extraction_information": extraction_info,
             "gps_entries": []
         }
-        
+    
         headers = self.current_decoder.get_xlsx_headers()
-        
+    
         for entry in entries:
             row = self.current_decoder.format_entry_for_xlsx(entry)
             entry_dict = {}
-            
+        
             # Map row data to headers
             for i, header in enumerate(headers):
                 if i < len(row):
                     entry_dict[header] = row[i]
-            
+        
             # Add core GPS data
             entry_dict.update({
                 "latitude": entry.latitude,
@@ -540,9 +712,9 @@ class VehicleGPSDecoder:
                 "timestamp": entry.timestamp,
                 "extra_data": entry.extra_data
             })
-            
-            json_data["gps_entries"].append(entry_dict)
         
+            json_data["gps_entries"].append(entry_dict)
+    
         with open(output_path, 'w', encoding='utf-8') as jsonfile:
             json.dump(json_data, jsonfile, indent=2, ensure_ascii=False, default=str)
     
@@ -661,6 +833,10 @@ def run_cli():
         print(f"{status} ({percent}%)")
     
     entries, error = decoder.extract_gps_data(input_file, progress_callback)
+
+    # Get system and extraction info for CLI
+    system_info = get_system_info()
+    extraction_info = get_extraction_info(selected_decoder, input_file, output_file, len(entries))
     
     if error:
         print(f"Error: {error}")
