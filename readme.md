@@ -304,6 +304,11 @@ Run with verbose output:
 import logging  
 logging.basicConfig(level=logging.DEBUG)
 
+#### **Unit Testing**
+
+Run the following script to test both the base decoder and main python file:
+pytest test_main.py -v --log-cli-level=DEBUG
+
 ### **Contributing**
 
 1. Fork the repository  
