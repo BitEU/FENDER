@@ -34,6 +34,7 @@ FENDER is a powerful tool for extracting GPS location data from vehicle telemati
   * [Troubleshooting](#troubleshooting)  
     * [Common Issues](#common-issues)  
     * [Debug Mode](#debug-mode)  
+  * [Todo](#todo)  
   * [Contributing](#contributing)  
   * [Credits](#credits)  
 
@@ -309,12 +310,29 @@ logging.basicConfig(level=logging.DEBUG)
 Run the following script to test both the base decoder and main python file:
 pytest test_main.py -v --log-cli-level=DEBUG
 
+### **Todo**
+
+* Optimizing speed and efficiency
+* Plotting points on an interactive map
+* Include more data than just timestamps and geolocation
+* Batch processing
+* Permit users to export to CSV or JSON, not just XLSX
+* Use SHA256 to hash disk images as well as the reports
+* Include timestamp of report generation in filename
+* Include details of extraction, device configuration, python configuration in reports in seperste worksheet
+* Implement anomoly detection to flag any rows that arent in line eith the rest of the data
+* Use tempfile and shutil for more secure file handling
+* Make this program compliant with leading guidelines (ISO 27037? NIST 800-86?)
+* Export data to GeoJSON
+* Improve unit testing
+* Make test files publically available
+
 ### **Contributing**
 
 1. Fork the repository  
 2. Create a feature branch  
 3. Add your decoder to decoders/  
-4. Include test files if possible  
+4. Include test files for validation, otherwise contact sschiavone@pace.edu if they contain sensitive data
 5. Submit a pull request
 
 ### **Credits**
