@@ -6,6 +6,13 @@
 FileContentIndex/
 v17/
 .vs/
+*.csv
+*.xlsx
+*.xml
+*.json
+*.bin
+*.CE0
+*.USER
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
