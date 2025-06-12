@@ -313,7 +313,7 @@ logging.basicConfig(level=logging.DEBUG)
 Run the following script to test both the base decoder and main python file:
 pytest test_main.py -v --log-cli-level=DEBUG
 
-### **Todo**
+## **Todo**
 
 * Optimizing speed and efficiency
 * Plotting points on an interactive map
@@ -330,7 +330,7 @@ pytest test_main.py -v --log-cli-level=DEBUG
 * Improve unit testing
 * Make test files publically available
 
-### **Contributing**
+## **Contributing**
 
 1. Fork the repository  
 2. Create a feature branch  
@@ -338,6 +338,6 @@ pytest test_main.py -v --log-cli-level=DEBUG
 4. Include test files for validation, otherwise contact sschiavone@pace.edu if they contain sensitive data
 5. Submit a pull request
 
-### **Credits**
+## **Credits**
 
 1. This project includes images created by [Iconoir](https://iconoir.com/). Copyright 2025 Iconoir
