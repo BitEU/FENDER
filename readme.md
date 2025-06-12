@@ -2,6 +2,9 @@
 
 FENDER is a powerful tool for extracting GPS location data from vehicle telematics binary files. It supports multiple vehicle manufacturers and provides an easy-to-use interface for forensic investigators and researchers.
 
+## Feedback
+Your input helps make FENDER better! Please share bugs, feature requests, or suggestions by [creating a GitHub Issue](https://github.com/BitEU/FENDER/issues/new). Include details like your OS, file type, test file, and steps to reproduce any issues.
+
 ## **Table of Contents**
 
 * [Simple Guide](#simple-guide)  
