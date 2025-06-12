@@ -37,9 +37,9 @@ Your input helps make FENDER better! Please share bugs, feature requests, or sug
   * [Troubleshooting](#troubleshooting)  
     * [Common Issues](#common-issues)  
     * [Debug Mode](#debug-mode)  
-  * [Todo](#todo)  
-  * [Contributing](#contributing)  
-  * [Credits](#credits)  
+* [Todo](#todo)  
+* [Contributing](#contributing)  
+* [Credits](#credits)  
 
 ## **Simple Guide**
 
