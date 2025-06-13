@@ -329,14 +329,28 @@ pytest test_main.py -v --log-cli-level=DEBUG
 
 ## **Scoreboard**
 
-The list of vehicles supported by FENDER. This contains the most common vehicles in the United States. Those of which are crossed out are supported:
+This is the current tally of vehicles supported by FENDER. This contains the most common vehicles in the United States.
 
-* ~~Toyota Group~~
-  * ~~Toyota~~
-  * ~~Lexus~~
-* ~~Honda Motor Co~~
-  * ~~Honda~~
-  * ~~Acura~~
+<br>
+
+Supported vehicles:
+
+* Toyota Group
+  * Toyota
+  * Lexus
+* Honda Motor Co
+  * Honda
+  * Acura
+* General Motors
+  * GMC
+  * Chevrolet
+  * Buick
+  * Cadillac
+
+<br>
+
+Currently unsupported:
+
 * Nissan Motor Corp
   * Nissan
   * Infiniti
@@ -346,11 +360,6 @@ The list of vehicles supported by FENDER. This contains the most common vehicles
 * Ford Motor Company
   * Ford
   * Lincoln
-* ~~General Motors~~
-  * ~~GMC~~
-  * ~~Chevrolet~~
-  * ~~Buick~~
-  * ~~Cadillac~~
 * Stellantis
   * Chrystler
   * Dodge
