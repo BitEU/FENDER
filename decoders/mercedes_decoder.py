@@ -1,13 +1,207 @@
 import sqlite3
 import struct
-import pandas as pd
-from datetime import datetime, timezone
 import os
+from datetime import datetime, timezone
+from typing import List, Tuple, Optional, Any
+from base_decoder import BaseDecoder, GPSEntry
+import logging
+import time
 
-class MercedesGPSExtractor:
-    def __init__(self, db_path):
-        self.db_path = db_path
+# Setup logger for this module
+logger = logging.getLogger(__name__)
+
+class MercedesDecoder(BaseDecoder):
+    def __init__(self):
+        super().__init__()
         self.INT32_MAX = 2147483647  # 2^31 - 1
+        self._logger.info(f"MercedesDecoder initialized")
+    
+    def get_name(self) -> str:
+        return "Mercedes NTG5*2"
+    
+    def get_supported_extensions(self) -> List[str]:
+        extensions = ['.sqlite', '.db']
+        self._logger.debug(f"Supported extensions: {extensions}")
+        return extensions
+    
+    def get_dropzone_text(self) -> str:
+        return "Drop your Mercedes NTG5*2 SQLite database\nhere or click to browse"
+
+    def get_xlsx_headers(self) -> List[str]:
+        headers = ['TrailId', 'BeginTime_ISO', 'EndTime_ISO', 'GPS_Longitude', 'GPS_Latitude']
+        self._logger.debug(f"XLSX headers: {len(headers)} columns")
+        return headers
+    
+    def format_entry_for_xlsx(self, entry: GPSEntry) -> List[Any]:
+        """Format a GPSEntry into a row for the XLSX file"""
+        self._logger.debug(f"Formatting entry for XLSX: lat={entry.latitude}, lon={entry.longitude}")
+        
+        row = [
+            entry.extra_data.get('TrailId', ''),
+            entry.extra_data.get('BeginTime_ISO', ''),
+            entry.extra_data.get('EndTime_ISO', ''),
+            entry.longitude if entry.longitude != 0 else 'ERROR',
+            entry.latitude if entry.latitude != 0 else 'ERROR'
+        ]
+        
+        return row
+    
+    def extract_gps_data(self, file_path: str, progress_callback=None, stop_event=None) -> Tuple[List[GPSEntry], Optional[str]]:
+        """Extract GPS data from Mercedes SQLite database, with support for stopping."""
+        start_time = time.time()
+        self._log_extraction_start(file_path)
+        
+        try:
+            if not os.path.exists(file_path):
+                error_msg = f"Database file not found: {file_path}"
+                self._log_extraction_error(error_msg)
+                return [], error_msg
+            
+            # Check file size
+            file_size = os.path.getsize(file_path)
+            self._logger.info(f"Processing Mercedes SQLite file: {file_path} (Size: {file_size/1024/1024:.2f} MB)")
+            
+            if progress_callback:
+                progress_callback("Opening SQLite database...", 10)
+                self._log_progress("Opening SQLite database", 10)
+                
+            if stop_event and stop_event.is_set():
+                self._logger.warning("Processing stopped by user before database open")
+                return [], "Processing stopped by user."
+
+            conn = sqlite3.connect(file_path)
+            cursor = conn.cursor()
+            
+            if progress_callback:
+                progress_callback("Reading trails table...", 30)
+                self._log_progress("Reading trails table", 30)
+                
+            if stop_event and stop_event.is_set():
+                conn.close()
+                self._logger.warning("Processing stopped by user before trail read")
+                return [], "Processing stopped by user."
+
+            # Get all trails
+            cursor.execute("SELECT * FROM Trails")
+            trails = cursor.fetchall()
+            
+            # Get column names
+            column_names = [description[0] for description in cursor.description]
+            
+            self._logger.info(f"Found {len(trails)} trails in database")
+            
+            if progress_callback:
+                progress_callback(f"Processing {len(trails)} trails...", 50)
+                self._log_progress(f"Processing {len(trails)} trails", 50)
+                
+            if stop_event and stop_event.is_set():
+                conn.close()
+                self._logger.warning("Processing stopped by user before trail processing")
+                return [], "Processing stopped by user."
+
+            entries = []
+            valid_entries = 0
+            invalid_entries = 0
+            
+            for i, trail in enumerate(trails):
+                if stop_event and stop_event.is_set():
+                    conn.close()
+                    self._logger.warning(f"Processing stopped by user at trail {i}/{len(trails)}")
+                    return entries, "Processing stopped by user."
+
+                self._logger.debug(f"Processing trail {i+1}/{len(trails)}")
+                
+                trail_dict = dict(zip(column_names, trail))
+                
+                trail_id = trail_dict['TrailId']
+                begin_time = trail_dict['BeginTime']
+                end_time = trail_dict['EndTime']
+                bounding_data = trail_dict['Bounding']
+                path_data = trail_dict['Path']
+                
+                # Convert timestamps to ISO format
+                begin_time_iso = self.unix_to_iso(begin_time)
+                end_time_iso = self.unix_to_iso(end_time)
+                
+                # Decode bounding box
+                bbox_info = self.decode_bounding_box(bounding_data) if bounding_data else {}
+                
+                # Decode path events
+                events = self.decode_path_events(path_data, begin_time) if path_data else []
+                
+                # Create base record
+                base_record = {
+                    'TrailId': trail_id,
+                    'BeginTime_ISO': begin_time_iso,
+                    'EndTime_ISO': end_time_iso
+                }
+                
+                # Add bounding box info
+                base_record.update(bbox_info)
+                
+                # If no GPS events in path, just add the trail info
+                if not events:
+                    gps_entry = GPSEntry(
+                        latitude=0,
+                        longitude=0,
+                        timestamp=begin_time_iso if begin_time_iso else '',
+                        extra_data=base_record
+                    )
+                    entries.append(gps_entry)
+                    invalid_entries += 1
+                else:
+                    # Add each GPS event as a separate row
+                    for event in events:
+                        if self.is_valid_coordinates(event['latitude'], event['longitude']):
+                            gps_entry = GPSEntry(
+                                latitude=event['latitude'],
+                                longitude=event['longitude'],
+                                timestamp=begin_time_iso if begin_time_iso else '',
+                                extra_data=base_record.copy()
+                            )
+                            entries.append(gps_entry)
+                            valid_entries += 1
+                        else:
+                            invalid_entries += 1
+                            self._logger.debug(f"Invalid coordinates in trail {trail_id}: {event['latitude']}, {event['longitude']}")
+
+                if progress_callback and len(trails) > 0:
+                    progress = 50 + (30 * (i + 1) // len(trails))
+                    progress_callback(f"Processing trail {i+1}/{len(trails)}", progress)
+                    
+                    # Log progress every 10%
+                    if i % max(1, len(trails) // 10) == 0:
+                        self._log_progress(f"Processing trails ({i+1}/{len(trails)})", progress)
+
+            conn.close()
+            
+            elapsed_time = time.time() - start_time
+            self._logger.info(f"Processing complete. Valid entries: {valid_entries}, Invalid entries: {invalid_entries}")
+            
+            if progress_callback:
+                progress_callback("Processing complete!", 90)
+                self._log_progress("Processing complete", 90)
+
+            self._log_extraction_complete(len(entries), elapsed_time)
+            return entries, None
+
+        except sqlite3.Error as e:
+            error_msg = f"SQLite database error: {str(e)}"
+            self._log_extraction_error(error_msg)
+            return [], error_msg
+        except FileNotFoundError:
+            error_msg = f"File not found: {file_path}"
+            self._log_extraction_error(error_msg)
+            return [], error_msg
+        except PermissionError:
+            error_msg = f"Permission denied accessing file: {file_path}"
+            self._log_extraction_error(error_msg)
+            return [], error_msg
+        except Exception as e:
+            error_msg = f"Error processing file: {str(e)}"
+            self._logger.error(f"Unexpected error during extraction: {e}", exc_info=True)
+            self._log_extraction_error(error_msg)
+            return [], error_msg
     
     def decode_gps_coordinate(self, encoded_value):
         """
@@ -26,26 +220,32 @@ class MercedesGPSExtractor:
         Format: 01 01 01 00 + two sets of GPS coordinates (lon, lat, elevation)
         """
         if len(bounding_data) < 28:  # 4 byte header + 6*4 bytes for coordinates
-            return None
+            return {}
         
-        # Skip the 4-byte header (01 01 01 00)
-        coords_data = bounding_data[4:]
-        
-        # Unpack 6 32-bit little-endian integers
-        coords = struct.unpack('<6I', coords_data)
-        
-        # First set: longitude, latitude, elevation
-        lon1 = self.decode_gps_coordinate(coords[0])
-        lat1 = self.decode_gps_coordinate(coords[1])
-        elev1 = coords[2]  # Elevation in centimeters
-        
-        # Second set: longitude, latitude, elevation  
-        lon2 = self.decode_gps_coordinate(coords[3])
-        lat2 = self.decode_gps_coordinate(coords[4])
-        elev2 = coords[5]  # Elevation in centimeters
-        
-        # Removed bbox_* fields from output
-        return {}
+        try:
+            # Skip the 4-byte header (01 01 01 00)
+            coords_data = bounding_data[4:]
+            
+            # Unpack 6 32-bit little-endian integers
+            coords = struct.unpack('<6I', coords_data)
+            
+            # First set: longitude, latitude, elevation
+            lon1 = self.decode_gps_coordinate(coords[0])
+            lat1 = self.decode_gps_coordinate(coords[1])
+            elev1 = coords[2]  # Elevation in centimeters
+            
+            # Second set: longitude, latitude, elevation  
+            lon2 = self.decode_gps_coordinate(coords[3])
+            lat2 = self.decode_gps_coordinate(coords[4])
+            elev2 = coords[5]  # Elevation in centimeters
+            
+            self._logger.debug(f"Decoded bounding box: ({lat1:.6f}, {lon1:.6f}) to ({lat2:.6f}, {lon2:.6f})")
+            
+            # Return empty dict as specified in original code
+            return {}
+        except struct.error as e:
+            self._logger.error(f"Error decoding bounding box: {e}")
+            return {}
     
     def decode_path_events(self, path_data, start_timestamp):
         """
@@ -61,10 +261,12 @@ class MercedesGPSExtractor:
         if len(path_data) < 6:
             return events
             
-        num_segments = struct.unpack('<H', path_data[4:6])[0]
-        offset = 6
-        
         try:
+            num_segments = struct.unpack('<H', path_data[4:6])[0]
+            offset = 6
+            
+            self._logger.debug(f"Decoding path with {num_segments} segments")
+            
             for segment_idx in range(num_segments):
                 if offset + 4 > len(path_data):
                     break
@@ -93,7 +295,6 @@ class MercedesGPSExtractor:
                             lat = self.decode_gps_coordinate(coords[1])
                             elev = coords[2]  # Elevation in centimeters
                             
-                            # Removed 'distance' and 'event_type' from event
                             events.append({
                                 'longitude': lon,
                                 'latitude': lat,
@@ -127,9 +328,10 @@ class MercedesGPSExtractor:
                 
                 offset += segment_size
                 
-        except struct.error:
-            pass  # Handle malformed data gracefully
+        except struct.error as e:
+            self._logger.error(f"Error decoding path events: {e}")
         
+        self._logger.debug(f"Decoded {len(events)} GPS events from path data")
         return events
     
     def unix_to_iso(self, unix_timestamp):
@@ -139,145 +341,16 @@ class MercedesGPSExtractor:
                 dt = datetime.fromtimestamp(unix_timestamp, tz=timezone.utc)
                 return dt.isoformat()
             except (ValueError, OSError):
+                self._logger.warning(f"Invalid Unix timestamp: {unix_timestamp}")
                 return None
         return None
     
-    def extract_gps_data(self):
-        """Extract all GPS data from the database"""
-        if not os.path.exists(self.db_path):
-            raise FileNotFoundError(f"Database file not found: {self.db_path}")
-        
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        # Get all trails
-        cursor.execute("SELECT * FROM Trails")
-        trails = cursor.fetchall()
-        
-        # Get column names
-        column_names = [description[0] for description in cursor.description]
-        
-        all_data = []
-        
-        for trail in trails:
-            trail_dict = dict(zip(column_names, trail))
-            
-            trail_id = trail_dict['TrailId']
-            begin_time = trail_dict['BeginTime']
-            end_time = trail_dict['EndTime']
-            bounding_data = trail_dict['Bounding']
-            path_data = trail_dict['Path']
-            
-            # Convert timestamps to ISO format
-            begin_time_iso = self.unix_to_iso(begin_time)
-            end_time_iso = self.unix_to_iso(end_time)
-            
-            # Decode bounding box
-            bbox_info = self.decode_bounding_box(bounding_data) if bounding_data else {}
-            
-            # Decode path events
-            events = self.decode_path_events(path_data, begin_time) if path_data else []
-            
-            # Create base record (DriverId removed)
-            base_record = {
-                'TrailId': trail_id,
-                'BeginTime_ISO': begin_time_iso,
-                'EndTime_ISO': end_time_iso
-            }
-            
-            # Add bounding box info (now empty dict)
-            base_record.update(bbox_info)
-            
-            # If no GPS events in path, just add the trail info
-            if not events:
-                all_data.append(base_record)
-            else:
-                # Add each GPS event as a separate row (GPS_Elevation_cm removed)
-                for event in events:
-                    record = base_record.copy()
-                    record.update({
-                        'GPS_Longitude': event['longitude'],
-                        'GPS_Latitude': event['latitude']
-                    })
-                    all_data.append(record)
-        
-        conn.close()
-        return all_data
-
-    def export_to_excel(self, output_file='mercedes_gps_data.xlsx'):
-        """Extract data and export to Excel"""
-        print("Extracting GPS data from Mercedes NTG5*2 database...")
-        data = self.extract_gps_data()
-        
-        if not data:
-            print("No data found in database")
-            return
-        
-        # Create DataFrame
-        df = pd.DataFrame(data)
-        
-        # Reorder columns for better readability (DriverId and GPS_Elevation_cm removed)
-        preferred_order = [
-            'TrailId', 'BeginTime_ISO', 'EndTime_ISO',
-            'GPS_Longitude', 'GPS_Latitude'
-        ]
-        
-        # Add any remaining columns
-        remaining_cols = [col for col in df.columns if col not in preferred_order]
-        column_order = [col for col in preferred_order if col in df.columns] + remaining_cols
-        
-        df = df[column_order]
-        
-        # Export to Excel
-        with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name='GPS_Data', index=False)
-            
-            # Auto-adjust column widths
-            worksheet = writer.sheets['GPS_Data']
-            for column in worksheet.columns:
-                max_length = 0
-                column_letter = column[0].column_letter
-                for cell in column:
-                    try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-                adjusted_width = min(max_length + 2, 50)
-                worksheet.column_dimensions[column_letter].width = adjusted_width
-        
-        print(f"Data exported to {output_file}")
-        print(f"Total records: {len(df)}")
-        print(f"Unique trails: {df['TrailId'].nunique()}")
-        
-        # Print summary statistics
-        if 'GPS_Longitude' in df.columns:
-            gps_records = df.dropna(subset=['GPS_Longitude', 'GPS_Latitude'])
-            print(f"GPS coordinate records: {len(gps_records)}")
-            if len(gps_records) > 0:
-                print(f"Latitude range: {gps_records['GPS_Latitude'].min():.6f} to {gps_records['GPS_Latitude'].max():.6f}")
-                print(f"Longitude range: {gps_records['GPS_Longitude'].min():.6f} to {gps_records['GPS_Longitude'].max():.6f}")
-        
-        return df
-
-def main():
-    # Update this path to your database location
-    db_path = r"C:\Users\wcdaht\Downloads\QNX_2\Mercedes\NTG5HU-HDD\p2\nav\trails.sqlite"
-    
-    try:
-        extractor = MercedesGPSExtractor(db_path)
-        df = extractor.export_to_excel('mercedes_gps_extracted.xlsx')
-        
-        # Display first few rows
-        print("\nFirst 5 rows of extracted data:")
-        pd.set_option('display.max_columns', None)
-        pd.set_option('display.width', None)
-        print(df.head())
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
-
-if __name__ == "__main__":
-    main()
+    def is_valid_coordinates(self, lat, lon):
+        """Check if coordinates are valid"""
+        if lat is None or lon is None:
+            return False
+        if lat == 0 and lon == 0:
+            return False  # Null island
+        if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+            return False
+        return True
