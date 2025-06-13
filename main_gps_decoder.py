@@ -15,6 +15,15 @@ import importlib
 import inspect
 from datetime import datetime
 import hashlib
+import shutil
+import locale
+import socket
+import subprocess
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
 
 # Import base decoder
 from base_decoder import BaseDecoder, GPSEntry
@@ -27,21 +36,66 @@ if platform.system() == "Windows":
     import ctypes
     from ctypes import windll
 
-def get_system_info():
+def get_system_info(input_file=None, output_file=None, execution_mode="GUI", decoder_registry=None):
     """Gather system and configuration information for reports"""
-    return {
+    
+    # Get directory paths for permission checking
+    output_dir = os.path.dirname(output_file) if output_file else os.getcwd()
+    
+    system_info = {
         "fender_version": FENDER_VERSION,
         "fender_build_date": FENDER_BUILD_DATE,
-        "extraction_timestamp": datetime.now().isoformat(),
-        "python_version": sys.version,
-        "python_executable": sys.executable,
-        "platform_system": platform.system(),
-        "platform_release": platform.release(),
-        "platform_version": platform.version(),
-        "platform_machine": platform.machine(),
-        "platform_processor": platform.processor(),
-        "hostname": platform.node(),
+        "report_generated_on": datetime.now().isoformat(),
+        "python_interpreter_version": sys.version,
+        "python_interpreter_path": sys.executable,
+        "operating_system": platform.system(),
+        "os_release": platform.release(),
+        "os_version": platform.version(),
+        "system_architecture": platform.machine(),
+        "processor_type": platform.processor(),
+        "computer_hostname": platform.node(),
+        "system_ram_available_total": get_system_ram(),
+        "output_disk_space_available": get_disk_space(output_dir),
+        "system_locale": get_system_locale(),
+        "network_status": check_network_status(),
+        "execution_mode": execution_mode,
     }
+    
+    # Add file permission checks if files are provided
+    if input_file:
+        system_info["read_permissions_granted"] = check_read_permissions(input_file)
+    
+    if output_file:
+        system_info["write_permissions_granted"] = check_write_permissions(output_dir)
+    
+    # Add CLI arguments if running in CLI mode
+    if execution_mode == "CLI":
+        system_info["cli_arguments"] = " ".join(sys.argv)
+    
+    # Add decoder information if registry is provided
+    if decoder_registry:
+        system_info["available_decoders"] = list(decoder_registry.get_decoder_names())
+        system_info["decoder_details"] = get_decoder_info(decoder_registry)
+    
+    # Add file hashes for main components
+    try:
+        main_script_path = os.path.abspath(__file__)
+        system_info["main_script_hash"] = get_file_hash_safe(main_script_path)
+        system_info["main_script_path"] = main_script_path
+    except:
+        system_info["main_script_hash"] = "Error getting main script hash"
+    
+    try:
+        base_decoder_path = os.path.join(os.path.dirname(__file__), "base_decoder.py")
+        if os.path.exists(base_decoder_path):
+            system_info["base_decoder_hash"] = get_file_hash_safe(base_decoder_path)
+            system_info["base_decoder_path"] = base_decoder_path
+        else:
+            system_info["base_decoder_hash"] = "base_decoder.py not found"
+    except:
+        system_info["base_decoder_hash"] = "Error getting base decoder hash"
+    
+    return system_info
 
 def get_file_hash(file_path: str) -> str:
     """Calculate SHA256 hash of the input file"""
@@ -79,6 +133,141 @@ def get_extraction_info(decoder_name: str, input_file: str, output_file: str, en
     }
     
     return extraction_info
+
+def get_system_ram():
+    """Get system RAM information"""
+    if PSUTIL_AVAILABLE:
+        try:
+            memory = psutil.virtual_memory()
+            available_gb = memory.available / (1024**3)
+            total_gb = memory.total / (1024**3)
+            return f"{available_gb:.1f} GB / {total_gb:.1f} GB"
+        except Exception as e:
+            return f"psutil error: {str(e)}"
+    else:
+        # Fallback to platform-specific methods
+        return get_system_ram_fallback()
+
+def get_system_ram_fallback():
+    """Get system RAM information using platform-specific commands"""
+    try:
+        if platform.system() == "Windows":
+            # Use wmic command on Windows
+            result = subprocess.run(['wmic', 'computersystem', 'get', 'TotalPhysicalMemory'], 
+                                  capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                lines = result.stdout.strip().split('\n')
+                if len(lines) > 1:
+                    total_bytes = int(lines[1].strip())
+                    total_gb = total_bytes / (1024**3)
+                    return f"Total: {total_gb:.1f} GB (Available: Unknown)"
+        elif platform.system() == "Linux":
+            # Use /proc/meminfo on Linux
+            with open('/proc/meminfo', 'r') as f:
+                lines = f.readlines()
+                mem_total = mem_available = None
+                for line in lines:
+                    if line.startswith('MemTotal:'):
+                        mem_total = int(line.split()[1]) * 1024  # Convert KB to bytes
+                    elif line.startswith('MemAvailable:'):
+                        mem_available = int(line.split()[1]) * 1024
+                
+                if mem_total:
+                    total_gb = mem_total / (1024**3)
+                    if mem_available:
+                        available_gb = mem_available / (1024**3)
+                        return f"{available_gb:.1f} GB / {total_gb:.1f} GB"
+                    else:
+                        return f"Total: {total_gb:.1f} GB (Available: Unknown)"
+        
+        return "RAM info not available on this platform"
+    except Exception as e:
+        return f"Error getting RAM info: {str(e)}"
+
+def get_disk_space(path):
+    """Get available disk space for a given path"""
+    try:
+        usage = shutil.disk_usage(os.path.dirname(path))
+        available_gb = usage.free / (1024**3)
+        return f"{available_gb:.1f} GB"
+    except Exception as e:
+        return f"Error getting disk space: {str(e)}"
+
+def check_read_permissions(file_path):
+    """Check if file is readable"""
+    try:
+        return "Yes" if os.access(file_path, os.R_OK) else "No"
+    except Exception:
+        return "Error checking permissions"
+
+def check_write_permissions(directory_path):
+    """Check if directory is writable"""
+    try:
+        return "Yes" if os.access(directory_path, os.W_OK) else "No"
+    except Exception:
+        return "Error checking permissions"
+
+def get_system_locale():
+    """Get system locale information using modern locale methods"""
+    try:
+        # Get current locale setting
+        current_locale = locale.getlocale()
+        if current_locale[0]:
+            locale_info = current_locale[0]
+        else:
+            # Fallback to system default
+            try:
+                # Try to get the default category locale
+                locale.setlocale(locale.LC_ALL, '')
+                locale_info = locale.getlocale()[0] or "Unknown"
+            except locale.Error:
+                # If that fails, try to get encoding info
+                try:
+                    encoding = locale.getencoding()
+                    locale_info = f"Default encoding: {encoding}"
+                except:
+                    locale_info = "Unknown"
+        
+        # Also get encoding information
+        try:
+            encoding = locale.getencoding()
+            return f"{locale_info} (Encoding: {encoding})"
+        except:
+            return locale_info
+            
+    except Exception as e:
+        return f"Error getting locale: {str(e)}"
+
+def check_network_status():
+    """Check if system has network connectivity"""
+    try:
+        socket.create_connection(("8.8.8.8", 53), timeout=3)
+        return "Online"
+    except Exception:
+        return "Offline"
+
+def get_file_hash_safe(file_path):
+    """Get file hash with error handling"""
+    try:
+        return get_file_hash(file_path)
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def get_decoder_info(registry):
+    """Get information about available decoders"""
+    decoder_info = {}
+    for name in registry.get_decoder_names():
+        try:
+            decoder_class = registry.get_decoder(name)
+            decoder_instance = decoder_class()
+            decoder_info[name] = {
+                "supported_extensions": decoder_instance.get_supported_extensions(),
+                "class_name": decoder_class.__name__,
+                "module": decoder_class.__module__
+            }
+        except Exception as e:
+            decoder_info[name] = {"error": str(e)}
+    return decoder_info
 
 def get_resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""
@@ -152,6 +341,7 @@ class VehicleGPSDecoder:
         self.root.geometry("1200x700")  # Slightly larger to accommodate new options
         self.root.configure(bg='#1a1a1a')
         self.processing_start_time = None
+        self.execution_mode = "GUI"
         
         # Initialize decoder registry
         self.decoder_registry = DecoderRegistry()
@@ -560,7 +750,12 @@ class VehicleGPSDecoder:
         ws_details = wb.create_sheet("Extraction Details")
     
         # Get system and extraction info
-        system_info = get_system_info()
+        system_info = get_system_info(
+            input_file=self.input_file,
+            output_file=output_path,
+            execution_mode=self.execution_mode,
+            decoder_registry=self.decoder_registry
+        )
         processing_time = (datetime.now() - self.processing_start_time).total_seconds() if self.processing_start_time else None
         extraction_info = get_extraction_info(
             self.selected_decoder_name, 
@@ -613,7 +808,12 @@ class VehicleGPSDecoder:
         headers = self.current_decoder.get_xlsx_headers()  # Reuse XLSX headers
     
         # Get system and extraction info
-        system_info = get_system_info()
+        system_info = get_system_info(
+            input_file=self.input_file,
+            output_file=output_path,
+            execution_mode=self.execution_mode,
+            decoder_registry=self.decoder_registry
+        )
         processing_time = (datetime.now() - self.processing_start_time).total_seconds() if self.processing_start_time else None
         extraction_info = get_extraction_info(
             self.selected_decoder_name, 
@@ -673,7 +873,12 @@ class VehicleGPSDecoder:
     def write_json(self, entries: List[GPSEntry], output_path: str):
         """Write GPS entries to JSON file with extraction details"""
         # Get system and extraction info
-        system_info = get_system_info()
+        system_info = get_system_info(
+            input_file=self.input_file,
+            output_file=output_path,
+            execution_mode=self.execution_mode,
+            decoder_registry=self.decoder_registry
+        )
         processing_time = (datetime.now() - self.processing_start_time).total_seconds() if self.processing_start_time else None
         extraction_info = get_extraction_info(
             self.selected_decoder_name, 
@@ -835,7 +1040,12 @@ def run_cli():
     entries, error = decoder.extract_gps_data(input_file, progress_callback)
 
     # Get system and extraction info for CLI
-    system_info = get_system_info()
+    system_info = get_system_info(
+        input_file=input_file,
+        output_file=output_file,
+        execution_mode="CLI",
+        decoder_registry=registry
+    )
     extraction_info = get_extraction_info(selected_decoder, input_file, output_file, len(entries))
     
     if error:

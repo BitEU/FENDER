@@ -3,3 +3,4 @@ tkinterdnd2
 openpyxl
 argparse
 pytest
+psutil
