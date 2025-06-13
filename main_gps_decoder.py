@@ -19,6 +19,9 @@ import shutil
 import locale
 import socket
 import subprocess
+import tempfile
+import secrets
+import stat
 try:
     import psutil
     PSUTIL_AVAILABLE = True
@@ -29,8 +32,8 @@ except ImportError:
 from base_decoder import BaseDecoder, GPSEntry
 
 # FENDER Version Information
-FENDER_VERSION = "1.1.5"
-FENDER_BUILD_DATE = "June 11 2025"
+FENDER_VERSION = "1.1.8"
+FENDER_BUILD_DATE = "June 13 2025"
 
 if platform.system() == "Windows":
     import ctypes
@@ -76,6 +79,7 @@ def get_system_info(input_file=None, output_file=None, execution_mode="GUI", dec
     if decoder_registry:
         system_info["available_decoders"] = list(decoder_registry.get_decoder_names())
         system_info["decoder_details"] = get_decoder_info(decoder_registry)
+        system_info["decoder_hashes"] = get_decoder_hashes(decoder_registry)
     
     # Add file hashes for main components
     try:
@@ -96,6 +100,184 @@ def get_system_info(input_file=None, output_file=None, execution_mode="GUI", dec
         system_info["base_decoder_hash"] = "Error getting base decoder hash"
     
     return system_info
+
+def get_decoder_hashes(registry):
+    """Get SHA256 hashes of all loaded decoder files for integrity verification"""
+    decoder_hashes = {}
+    
+    for name in registry.get_decoder_names():
+        try:
+            decoder_class = registry.get_decoder(name)
+            
+            # Get the module file path
+            module = inspect.getmodule(decoder_class)
+            if module and hasattr(module, '__file__') and module.__file__:
+                file_path = os.path.abspath(module.__file__)
+                
+                # Calculate hash
+                decoder_hashes[name] = {
+                    "file_path": file_path,
+                    "sha256_hash": get_file_hash_safe(file_path),
+                    "file_size": os.path.getsize(file_path) if os.path.exists(file_path) else 0,
+                    "last_modified": datetime.fromtimestamp(
+                        os.path.getmtime(file_path)
+                    ).isoformat() if os.path.exists(file_path) else "Unknown"
+                }
+            else:
+                decoder_hashes[name] = {
+                    "error": "Could not determine decoder file path"
+                }
+                
+        except Exception as e:
+            decoder_hashes[name] = {
+                "error": f"Error getting decoder hash: {str(e)}"
+            }
+    
+    return decoder_hashes
+
+def secure_temp_file(suffix="", prefix="fender_", dir=None):
+    """Create a secure temporary file with restricted permissions"""
+    # Create temporary file with secure permissions
+    fd, path = tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=dir)
+    
+    # Set restrictive permissions (owner read/write only)
+    if platform.system() != "Windows":
+        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+    
+    return fd, path
+
+def secure_temp_dir(prefix="fender_", dir=None):
+    """Create a secure temporary directory with restricted permissions"""
+    path = tempfile.mkdtemp(prefix=prefix, dir=dir)
+    
+    # Set restrictive permissions (owner only)
+    if platform.system() != "Windows":
+        os.chmod(path, stat.S_IRWXU)
+    
+    return path
+
+def secure_file_copy(src, dst, chunk_size=65536):
+    """Securely copy file with verification"""
+    src_hash = hashlib.sha256()
+    dst_hash = hashlib.sha256()
+    
+    with open(src, 'rb') as src_file, open(dst, 'wb') as dst_file:
+        while True:
+            chunk = src_file.read(chunk_size)
+            if not chunk:
+                break
+            src_hash.update(chunk)
+            dst_file.write(chunk)
+    
+    # Verify copy integrity
+    with open(dst, 'rb') as dst_file:
+        while True:
+            chunk = dst_file.read(chunk_size)
+            if not chunk:
+                break
+            dst_hash.update(chunk)
+    
+    if src_hash.hexdigest() != dst_hash.hexdigest():
+        raise ValueError("File copy verification failed - checksums don't match")
+    
+    return dst_hash.hexdigest()
+
+def sanitize_filename(filename):
+    """Sanitize filename to prevent path traversal attacks"""
+    # Remove directory separators and other potentially dangerous characters
+    dangerous_chars = '<>:"/\\|?*'
+    for char in dangerous_chars:
+        filename = filename.replace(char, '_')
+    
+    # Remove any path components
+    filename = os.path.basename(filename)
+    
+    # Limit length
+    if len(filename) > 200:
+        name, ext = os.path.splitext(filename)
+        filename = name[:200-len(ext)] + ext
+    
+    return filename
+
+def validate_file_path(file_path, allowed_extensions=None):
+    """Validate file path for security"""
+    try:
+        # Resolve to absolute path to prevent traversal
+        abs_path = os.path.abspath(file_path)
+        
+        # Check if file exists
+        if not os.path.exists(abs_path):
+            return False, "File does not exist"
+        
+        # Check if it's actually a file
+        if not os.path.isfile(abs_path):
+            return False, "Path is not a file"
+        
+        # Check file extension if provided
+        if allowed_extensions:
+            file_ext = os.path.splitext(abs_path)[1].lower()
+            if file_ext not in [ext.lower() for ext in allowed_extensions]:
+                return False, f"File extension not allowed. Allowed: {allowed_extensions}"
+        
+        # Check file size (prevent extremely large files)
+        file_size = os.path.getsize(abs_path)
+        max_size = 10 * 1024 * 1024 * 1024  # 10GB limit
+        if file_size > max_size:
+            return False, f"File too large. Maximum size: {max_size/1024/1024/1024:.1f}GB"
+        
+        return True, abs_path
+        
+    except Exception as e:
+        return False, f"Path validation error: {str(e)}"
+
+def write_geojson(entries: List[GPSEntry], output_path: str, decoder_name: str = "Unknown"):
+    """Write GPS entries to GeoJSON format"""
+    features = []
+    
+    for i, entry in enumerate(entries):
+        # Skip invalid coordinates
+        if (entry.latitude == 0 and entry.longitude == 0) or \
+           not (-90 <= entry.latitude <= 90) or \
+           not (-180 <= entry.longitude <= 180):
+            continue
+        
+        # Create feature
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [entry.longitude, entry.latitude]  # GeoJSON uses [lon, lat]
+            },
+            "properties": {
+                "id": i + 1,
+                "timestamp": entry.timestamp,
+                "latitude": entry.latitude,
+                "longitude": entry.longitude,
+            }
+        }
+        
+        # Add extra data if available
+        if entry.extra_data:
+            feature["properties"].update(entry.extra_data)
+        
+        features.append(feature)
+    
+    # Create GeoJSON structure
+    geojson = {
+        "type": "FeatureCollection",
+        "metadata": {
+            "decoder": decoder_name,
+            "extraction_timestamp": datetime.now().isoformat(),
+            "total_features": len(features),
+            "coordinate_system": "WGS84",
+            "creator": f"FENDER v{FENDER_VERSION}"
+        },
+        "features": features
+    }
+    
+    # Write to file
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(geojson, f, indent=2, ensure_ascii=False)
 
 def get_file_hash(file_path: str) -> str:
     """Calculate SHA256 hash of the input file"""
@@ -145,14 +327,12 @@ def get_system_ram():
         except Exception as e:
             return f"psutil error: {str(e)}"
     else:
-        # Fallback to platform-specific methods
         return get_system_ram_fallback()
 
 def get_system_ram_fallback():
     """Get system RAM information using platform-specific commands"""
     try:
         if platform.system() == "Windows":
-            # Use wmic command on Windows
             result = subprocess.run(['wmic', 'computersystem', 'get', 'TotalPhysicalMemory'], 
                                   capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
@@ -162,13 +342,12 @@ def get_system_ram_fallback():
                     total_gb = total_bytes / (1024**3)
                     return f"Total: {total_gb:.1f} GB (Available: Unknown)"
         elif platform.system() == "Linux":
-            # Use /proc/meminfo on Linux
             with open('/proc/meminfo', 'r') as f:
                 lines = f.readlines()
                 mem_total = mem_available = None
                 for line in lines:
                     if line.startswith('MemTotal:'):
-                        mem_total = int(line.split()[1]) * 1024  # Convert KB to bytes
+                        mem_total = int(line.split()[1]) * 1024
                     elif line.startswith('MemAvailable:'):
                         mem_available = int(line.split()[1]) * 1024
                 
@@ -210,25 +389,20 @@ def check_write_permissions(directory_path):
 def get_system_locale():
     """Get system locale information using modern locale methods"""
     try:
-        # Get current locale setting
         current_locale = locale.getlocale()
         if current_locale[0]:
             locale_info = current_locale[0]
         else:
-            # Fallback to system default
             try:
-                # Try to get the default category locale
                 locale.setlocale(locale.LC_ALL, '')
                 locale_info = locale.getlocale()[0] or "Unknown"
             except locale.Error:
-                # If that fails, try to get encoding info
                 try:
                     encoding = locale.getencoding()
                     locale_info = f"Default encoding: {encoding}"
                 except:
                     locale_info = "Unknown"
         
-        # Also get encoding information
         try:
             encoding = locale.getencoding()
             return f"{locale_info} (Encoding: {encoding})"
@@ -272,7 +446,6 @@ def get_decoder_info(registry):
 def get_resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""
     try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
@@ -291,16 +464,12 @@ class DecoderRegistry:
 
     def auto_discover_decoders(self):
         """Automatically discover and register decoders from the decoders directory"""
-        # Handle both development and frozen (PyInstaller) environments
         if getattr(sys, 'frozen', False):
-            # Running in a PyInstaller bundle
             decoders_dir = Path(get_resource_path("decoders"))
-            # Add the resource path to sys.path temporarily
             resource_path = get_resource_path("")
             if resource_path not in sys.path:
                 sys.path.insert(0, resource_path)
         else:
-            # Running in development
             decoders_dir = Path("decoders")
             sys.path.append(str(decoders_dir.parent))
 
@@ -334,11 +503,93 @@ class DecoderRegistry:
         """Get decoder class by name"""
         return self.decoders.get(name)
 
+class CustomRadiobutton(tk.Canvas):
+    """Custom radiobutton that matches the dark theme"""
+    def __init__(self, parent, text, variable, value, **kwargs):
+        super().__init__(parent, highlightthickness=0, **kwargs)
+        self.text = text
+        self.variable = variable
+        self.value = value
+        self.selected = False
+        
+        # Colors
+        self.bg_color = '#1a1a1a'
+        self.border_color = '#666666'
+        self.selected_color = '#4a9eff'
+        self.text_color = '#cccccc'
+        self.text_selected_color = '#ffffff'
+        
+        # Calculate width based on text length
+        text_width = len(text) * 8 + 40  # Rough estimate: 8px per char + padding
+        canvas_width = max(120, text_width)  # Minimum 120px
+        
+        # Configure canvas
+        self.configure(bg=self.bg_color, width=canvas_width, height=30)
+        
+        # Bind events
+        self.bind('<Button-1>', self.on_click)
+        self.bind('<Enter>', self.on_enter)
+        self.bind('<Leave>', self.on_leave)
+        
+        # Watch variable changes
+        self.variable.trace('w', self.on_variable_change)
+        
+        # Initial draw
+        self.draw()
+    
+    def draw(self):
+        """Draw the radiobutton"""
+        self.delete('all')
+        
+        # Check if selected
+        self.selected = (self.variable.get() == self.value)
+        
+        # Draw circle
+        circle_x = 10
+        circle_y = 15
+        circle_r = 6
+        
+        if self.selected:
+            # Selected state - filled circle
+            self.create_oval(circle_x - circle_r, circle_y - circle_r,
+                           circle_x + circle_r, circle_y + circle_r,
+                           outline=self.selected_color, fill=self.selected_color, width=2)
+            # Inner circle
+            self.create_oval(circle_x - 3, circle_y - 3,
+                           circle_x + 3, circle_y + 3,
+                           outline='white', fill='white', width=1)
+        else:
+            # Unselected state - empty circle
+            self.create_oval(circle_x - circle_r, circle_y - circle_r,
+                           circle_x + circle_r, circle_y + circle_r,
+                           outline=self.border_color, fill=self.bg_color, width=2)
+        
+        # Draw text
+        text_color = self.text_selected_color if self.selected else self.text_color
+        self.create_text(25, 15, text=self.text, anchor='w', 
+                        fill=text_color, font=('Segoe UI', 10))
+    
+    def on_click(self, event):
+        """Handle click event"""
+        self.variable.set(self.value)
+    
+    def on_enter(self, event):
+        """Handle mouse enter"""
+        self.configure(cursor='hand2')
+    
+    def on_leave(self, event):
+        """Handle mouse leave"""
+        self.configure(cursor='')
+    
+    def on_variable_change(self, *args):
+        """Handle variable change"""
+        self.draw()
+
 class VehicleGPSDecoder:
     def __init__(self, root):
         self.root = root
         self.root.title(f"FENDER v{FENDER_VERSION}")
-        self.root.geometry("1200x700")  # Slightly larger to accommodate new options
+        self.root.geometry("1200x700")
         self.root.configure(bg='#1a1a1a')
         self.processing_start_time = None
         self.execution_mode = "GUI"
@@ -349,7 +600,7 @@ class VehicleGPSDecoder:
 
         # Check if decoders were found
         if not decoder_names:
-            self.root.withdraw()  # Hide the empty window
+            self.root.withdraw()
             messagebox.showerror("Initialization Error",
                                  "No decoders found.\n\nPlease ensure decoder files are properly included.")
             self.root.destroy()
@@ -444,16 +695,6 @@ class VehicleGPSDecoder:
                            borderwidth=0,
                            lightcolor='#4a9eff',
                            darkcolor='#4a9eff')
-        
-        self.style.configure('Dark.TRadiobutton',
-                           background='#1a1a1a',
-                           foreground='#cccccc',
-                           font=('Segoe UI', 10),
-                           focuscolor='none')
-        
-        self.style.map('Dark.TRadiobutton',
-                      background=[('active', '#1a1a1a')],
-                      foreground=[('active', '#ffffff')])
 
         self.style.configure('DecoderList.TButton',
                    background='#252525',
@@ -484,7 +725,7 @@ class VehicleGPSDecoder:
         main_frame = ttk.Frame(self.root, style='Dark.TFrame')
         main_frame.pack(fill='both', expand=True, padx=20, pady=20)
         
-        # --- Left Panel for Decoder Selection ---
+        # Left Panel for Decoder Selection
         left_panel = ttk.Frame(main_frame, style='Dark.TFrame', width=190)
         left_panel.pack_propagate(False)
         left_panel.pack(side='left', fill='y', padx=(0, 20))
@@ -518,7 +759,7 @@ class VehicleGPSDecoder:
             btn.pack(fill='x', expand=True, pady=2)
             self.decoder_buttons[decoder_name] = btn
             
-        # --- Right Panel for Main Content ---
+        # Right Panel for Main Content
         right_panel = ttk.Frame(main_frame, style='Dark.TFrame')
         right_panel.pack(side='right', fill='both', expand=True)
         
@@ -530,7 +771,7 @@ class VehicleGPSDecoder:
         subtitle_label = ttk.Label(header_frame, text="Extract and decode GPS data with timestamps from vehicle telematics binary files", style='Subtitle.TLabel')
         subtitle_label.pack(anchor='w', pady=(5, 0))
 
-        # Export format selection
+        # Export format selection with custom radio buttons
         export_frame = ttk.Frame(right_panel, style='Dark.TFrame')
         export_frame.pack(fill='x', pady=(0, 15))
         
@@ -542,21 +783,26 @@ class VehicleGPSDecoder:
         format_frame = ttk.Frame(export_frame, style='Dark.TFrame')
         format_frame.pack(anchor='w')
         
-        # Radio buttons for export format
-        xlsx_radio = ttk.Radiobutton(format_frame, text="Excel (.xlsx)", 
-                                    variable=self.export_format, value="xlsx",
-                                    style='Dark.TRadiobutton')
-        xlsx_radio.pack(side='left', padx=(0, 15))
+        # Custom radio buttons for export format
+        xlsx_radio = CustomRadiobutton(format_frame, "Excel (.xlsx)", 
+                                      self.export_format, "xlsx",
+                                      bg='#1a1a1a')
+        xlsx_radio.pack(side='left', padx=(0, 20))
         
-        csv_radio = ttk.Radiobutton(format_frame, text="CSV (.csv)", 
-                                   variable=self.export_format, value="csv",
-                                   style='Dark.TRadiobutton')
-        csv_radio.pack(side='left', padx=(0, 15))
+        csv_radio = CustomRadiobutton(format_frame, "CSV (.csv)", 
+                                     self.export_format, "csv",
+                                     bg='#1a1a1a')
+        csv_radio.pack(side='left', padx=(0, 20))
         
-        json_radio = ttk.Radiobutton(format_frame, text="JSON (.json)", 
-                                    variable=self.export_format, value="json",
-                                    style='Dark.TRadiobutton')
-        json_radio.pack(side='left')
+        json_radio = CustomRadiobutton(format_frame, "JSON (.json)", 
+                                      self.export_format, "json",
+                                      bg='#1a1a1a')
+        json_radio.pack(side='left', padx=(0, 20))
+        
+        geojson_radio = CustomRadiobutton(format_frame, "GeoJSON (.geojson)", 
+                                         self.export_format, "geojson",
+                                         bg='#1a1a1a')
+        geojson_radio.pack(side='left')
 
         # Drop zone
         self.drop_frame = ttk.Frame(right_panel, style='DropZone.TFrame')
@@ -614,7 +860,6 @@ class VehicleGPSDecoder:
         decoder_instance = decoder_class()
         self.drop_label.configure(text=decoder_instance.get_dropzone_text())
 
-        # Clear current file if any
         if self.input_file:
             self.clear_file()
     
@@ -622,12 +867,10 @@ class VehicleGPSDecoder:
         if self.is_processing:
             return
         
-        # Get selected decoder
         decoder_class = self.decoder_registry.get_decoder(self.selected_decoder_name)
         decoder_instance = decoder_class()
         extensions = decoder_instance.get_supported_extensions()
         
-        # Build file types
         filetypes = []
         if extensions:
             ext_str = ";".join([f"*{ext}" for ext in extensions])
@@ -640,7 +883,12 @@ class VehicleGPSDecoder:
         )
         
         if file_path:
-            self.set_input_file(file_path)
+            # Validate file path
+            is_valid, result = validate_file_path(file_path, extensions)
+            if is_valid:
+                self.set_input_file(result)
+            else:
+                messagebox.showerror("File Validation Error", result)
     
     def set_input_file(self, file_path):
         self.input_file = file_path
@@ -658,8 +906,9 @@ class VehicleGPSDecoder:
             return
         
         self.input_file = None
-        decoder_name = self.selected_decoder_name
-        self.drop_label.configure(text=f"Drop {decoder_name} binary file here\nor click to browse")
+        decoder_class = self.decoder_registry.get_decoder(self.selected_decoder_name)
+        decoder_instance = decoder_class()
+        self.drop_label.configure(text=decoder_instance.get_dropzone_text())
         self.file_info_label.configure(text="")
         self.process_btn.configure(state='disabled', style='Disabled.TButton')
         self.progress_label.configure(text="")
@@ -671,7 +920,8 @@ class VehicleGPSDecoder:
         """Generate filename with timestamp"""
         base, _ = os.path.splitext(base_path)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return f"{base}_{decoder_name}_{timestamp}.{format_ext}"
+        safe_decoder_name = sanitize_filename(decoder_name)
+        return f"{base}_{safe_decoder_name}_{timestamp}.{format_ext}"
     
     def process_file(self):
         if not self.input_file or self.is_processing:
@@ -723,6 +973,8 @@ class VehicleGPSDecoder:
                     self.write_csv(entries, output_path)
                 elif format_type == "json":
                     self.write_json(entries, output_path)
+                elif format_type == "geojson":
+                    write_geojson(entries, output_path, self.selected_decoder_name)
                 
                 self.root.after(0, self.processing_complete, len(entries), output_path)
                 
@@ -767,15 +1019,34 @@ class VehicleGPSDecoder:
     
         # Write extraction details
         ws_details.append(["FENDER Extraction Report"])
-        ws_details.append([])  # Empty row
+        ws_details.append([])
     
         # System Information
         ws_details.append(["System Information"])
         ws_details.append(["Field", "Value"])
         for key, value in system_info.items():
-            ws_details.append([key.replace("_", " ").title(), str(value)])
+            if key != "decoder_hashes":  # Handle separately
+                ws_details.append([key.replace("_", " ").title(), str(value)])
     
-        ws_details.append([])  # Empty row
+        ws_details.append([])
+    
+        # Decoder Hashes
+        if "decoder_hashes" in system_info:
+            ws_details.append(["Decoder Integrity Verification"])
+            ws_details.append(["Decoder", "File Path", "SHA256 Hash", "File Size", "Last Modified"])
+            for decoder_name, hash_info in system_info["decoder_hashes"].items():
+                if "error" in hash_info:
+                    ws_details.append([decoder_name, "Error", hash_info["error"], "", ""])
+                else:
+                    ws_details.append([
+                        decoder_name,
+                        hash_info["file_path"],
+                        hash_info["sha256_hash"],
+                        hash_info["file_size"],
+                        hash_info["last_modified"]
+                    ])
+    
+        ws_details.append([])
     
         # Extraction Information
         ws_details.append(["Extraction Information"])
@@ -800,12 +1071,13 @@ class VehicleGPSDecoder:
         # Format the details worksheet
         ws_details.column_dimensions['A'].width = 25
         ws_details.column_dimensions['B'].width = 50
+        ws_details.column_dimensions['C'].width = 70
     
         wb.save(output_path)
     
     def write_csv(self, entries: List[GPSEntry], output_path: str):
         """Write GPS entries to CSV file with extraction details"""
-        headers = self.current_decoder.get_xlsx_headers()  # Reuse XLSX headers
+        headers = self.current_decoder.get_xlsx_headers()
     
         # Get system and extraction info
         system_info = get_system_info(
@@ -834,8 +1106,8 @@ class VehicleGPSDecoder:
                 row = self.current_decoder.format_entry_for_xlsx(entry)
                 writer.writerow(row)
         
-            # Add 50 empty rows
-            for _ in range(50):
+            # Add separator
+            for _ in range(5):
                 writer.writerow([])
         
             # Write extraction details
@@ -846,7 +1118,26 @@ class VehicleGPSDecoder:
             writer.writerow(["System Information"])
             writer.writerow(["Field", "Value"])
             for key, value in system_info.items():
-                writer.writerow([key.replace("_", " ").title(), str(value)])
+                if key != "decoder_hashes":
+                    writer.writerow([key.replace("_", " ").title(), str(value)])
+        
+            writer.writerow([])
+        
+            # Decoder Hashes
+            if "decoder_hashes" in system_info:
+                writer.writerow(["Decoder Integrity Verification"])
+                writer.writerow(["Decoder", "File Path", "SHA256 Hash", "File Size", "Last Modified"])
+                for decoder_name, hash_info in system_info["decoder_hashes"].items():
+                    if "error" in hash_info:
+                        writer.writerow([decoder_name, "Error", hash_info["error"], "", ""])
+                    else:
+                        writer.writerow([
+                            decoder_name,
+                            hash_info["file_path"],
+                            hash_info["sha256_hash"],
+                            hash_info["file_size"],
+                            hash_info["last_modified"]
+                        ])
         
             writer.writerow([])
         
@@ -968,7 +1259,16 @@ class VehicleGPSDecoder:
             return
         file_path = event.data.strip().split()[0]
         if os.path.isfile(file_path):
-            self.set_input_file(file_path)
+            # Validate dropped file
+            decoder_class = self.decoder_registry.get_decoder(self.selected_decoder_name)
+            decoder_instance = decoder_class()
+            extensions = decoder_instance.get_supported_extensions()
+            
+            is_valid, result = validate_file_path(file_path, extensions)
+            if is_valid:
+                self.set_input_file(result)
+            else:
+                messagebox.showerror("File Validation Error", result)
 
 def run_cli():
     """Run the CLI version with enhanced export options"""
@@ -1004,12 +1304,13 @@ def run_cli():
     print("1. Excel (.xlsx)")
     print("2. CSV (.csv)")
     print("3. JSON (.json)")
+    print("4. GeoJSON (.geojson)")
     
-    format_map = {1: "xlsx", 2: "csv", 3: "json"}
+    format_map = {1: "xlsx", 2: "csv", 3: "json", 4: "geojson"}
     while True:
         try:
             format_choice = int(input("\nSelect export format (enter number): "))
-            if 1 <= format_choice <= 3:
+            if 1 <= format_choice <= 4:
                 export_format = format_map[format_choice]
                 break
             else:
@@ -1019,18 +1320,27 @@ def run_cli():
     
     # Get file path
     input_file = input(f"\nEnter the path to the {selected_decoder} file: ").strip()
-    if not os.path.isfile(input_file):
-        print(f"Error: File not found - {input_file}")
+    
+    # Validate file
+    decoder_class = registry.get_decoder(selected_decoder)
+    decoder_instance = decoder_class()
+    extensions = decoder_instance.get_supported_extensions()
+    
+    is_valid, result = validate_file_path(input_file, extensions)
+    if not is_valid:
+        print(f"Error: {result}")
         return
     
+    input_file = result
+    
     # Create decoder and process
-    decoder_class = registry.get_decoder(selected_decoder)
-    decoder = decoder_class()
+    decoder = decoder_instance
     
     # Generate timestamped output filename
     base, _ = os.path.splitext(input_file)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = f"{base}_{selected_decoder}_{timestamp}.{export_format}"
+    safe_decoder_name = sanitize_filename(selected_decoder)
+    output_file = f"{base}_{safe_decoder_name}_{timestamp}.{export_format}"
     
     print(f"\nProcessing {selected_decoder} file...")
     
@@ -1039,15 +1349,6 @@ def run_cli():
     
     entries, error = decoder.extract_gps_data(input_file, progress_callback)
 
-    # Get system and extraction info for CLI
-    system_info = get_system_info(
-        input_file=input_file,
-        output_file=output_file,
-        execution_mode="CLI",
-        decoder_registry=registry
-    )
-    extraction_info = get_extraction_info(selected_decoder, input_file, output_file, len(entries))
-    
     if error:
         print(f"Error: {error}")
     else:
@@ -1109,6 +1410,9 @@ def run_cli():
             with open(output_file, 'w', encoding='utf-8') as jsonfile:
                 json.dump(json_data, jsonfile, indent=2, ensure_ascii=False, default=str)
         
+        elif export_format == "geojson":
+            write_geojson(entries, output_file, selected_decoder)
+        
         print(f"\nSuccessfully extracted {len(entries)} GPS entries.")
         print(f"Results written to: {output_file}")
 
@@ -1122,7 +1426,7 @@ def run_gui():
         if os.path.exists(icon_path):
             root.iconbitmap(icon_path)
     except tk.TclError:
-        pass  # Silently ignore if icon not found
+        pass
     
     app = VehicleGPSDecoder(root)
     
