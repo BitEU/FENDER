@@ -319,11 +319,8 @@ pytest test_main.py -v --log-cli-level=DEBUG
 * Plotting points on an interactive map
 * Include more data than just timestamps and geolocation
 * Batch processing
-* Include details of extraction, device configuration, python configuration in reports
 * Implement anomoly detection to flag any rows that arent in line eith the rest of the data
-* Use tempfile and shutil for more secure file handling
 * Make this program compliant with leading guidelines (ISO 27037? NIST 800-86?)
-* Export data to GeoJSON
 * Improve unit testing
 * Make test files publically available
 
