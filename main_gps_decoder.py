@@ -28,6 +28,9 @@ try:
 except ImportError:
     PSUTIL_AVAILABLE = False
 
+#Maximum file size (in GB) the program will load. I don't recommend anything below 30, as that is approx file size of Honda and QNX image files
+sizeingb = 65
+
 # Import base decoder
 from base_decoder import BaseDecoder, GPSEntry
 
@@ -221,7 +224,7 @@ def validate_file_path(file_path, allowed_extensions=None):
         
         # Check file size (prevent extremely large files)
         file_size = os.path.getsize(abs_path)
-        max_size = 10 * 1024 * 1024 * 1024  # 10GB limit
+        max_size = sizeingb * 1024 * 1024 * 1024  # 10GB limit
         if file_size > max_size:
             return False, f"File too large. Maximum size: {max_size/1024/1024/1024:.1f}GB"
         
@@ -1349,21 +1352,89 @@ def run_cli():
     
     entries, error = decoder.extract_gps_data(input_file, progress_callback)
 
+    # Get system and extraction info for CLI
+    system_info = get_system_info(
+        input_file=input_file,
+        output_file=output_file,
+        execution_mode="CLI",
+        decoder_registry=registry
+    )
+    extraction_info = get_extraction_info(selected_decoder, input_file, output_file, len(entries))
+
     if error:
         print(f"Error: {error}")
     else:
         # Write to selected format
         if export_format == "xlsx":
             wb = Workbook()
-            ws = wb.active
-            ws.title = "GPS Data"
+            
+            # Main GPS Data worksheet
+            ws_data = wb.active
+            ws_data.title = "GPS Data"
             
             headers = decoder.get_xlsx_headers()
-            ws.append(headers)
+            ws_data.append(headers)
             
             for entry in entries:
                 row = decoder.format_entry_for_xlsx(entry)
-                ws.append(row)
+                ws_data.append(row)
+            
+            # Create Extraction Details worksheet
+            ws_details = wb.create_sheet("Extraction Details")
+            
+            # Write extraction details
+            ws_details.append(["FENDER Extraction Report"])
+            ws_details.append([])
+            
+            # System Information
+            ws_details.append(["System Information"])
+            ws_details.append(["Field", "Value"])
+            for key, value in system_info.items():
+                if key != "decoder_hashes":
+                    ws_details.append([key.replace("_", " ").title(), str(value)])
+            
+            ws_details.append([])
+            
+            # Decoder Hashes
+            if "decoder_hashes" in system_info:
+                ws_details.append(["Decoder Integrity Verification"])
+                ws_details.append(["Decoder", "File Path", "SHA256 Hash", "File Size", "Last Modified"])
+                for decoder_name, hash_info in system_info["decoder_hashes"].items():
+                    if "error" in hash_info:
+                        ws_details.append([decoder_name, "Error", hash_info["error"], "", ""])
+                    else:
+                        ws_details.append([
+                            decoder_name,
+                            hash_info["file_path"],
+                            hash_info["sha256_hash"],
+                            hash_info["file_size"],
+                            hash_info["last_modified"]
+                        ])
+            
+            ws_details.append([])
+            
+            # Extraction Information
+            ws_details.append(["Extraction Information"])
+            ws_details.append(["Field", "Value"])
+            
+            # Input file details
+            ws_details.append(["Input File Path", extraction_info["input_file"]["path"]])
+            ws_details.append(["Input File Name", extraction_info["input_file"]["filename"]])
+            ws_details.append(["Input File Size (MB)", extraction_info["input_file"]["size_mb"]])
+            ws_details.append(["Input File SHA256", extraction_info["input_file"]["sha256_hash"]])
+            
+            # Output file details
+            ws_details.append(["Output File Path", extraction_info["output_file"]["path"]])
+            ws_details.append(["Output File Name", extraction_info["output_file"]["filename"]])
+            
+            # Extraction details
+            ws_details.append(["Decoder Used", extraction_info["extraction_details"]["decoder_used"]])
+            ws_details.append(["Entries Extracted", extraction_info["extraction_details"]["entries_extracted"]])
+            
+            # Format the details worksheet
+            ws_details.column_dimensions['A'].width = 25
+            ws_details.column_dimensions['B'].width = 50
+            ws_details.column_dimensions['C'].width = 70
             
             wb.save(output_file)
             
@@ -1372,11 +1443,68 @@ def run_cli():
             
             with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
                 writer = csv.writer(csvfile)
+                
+                # Write headers
                 writer.writerow(headers)
                 
+                # Write entries
                 for entry in entries:
                     row = decoder.format_entry_for_xlsx(entry)
                     writer.writerow(row)
+                
+                # Add separator
+                for _ in range(50):
+                    writer.writerow([])
+                
+                # Write extraction details
+                writer.writerow(["FENDER Extraction Report"])
+                writer.writerow([])
+                
+                # System Information
+                writer.writerow(["System Information"])
+                writer.writerow(["Field", "Value"])
+                for key, value in system_info.items():
+                    if key != "decoder_hashes":
+                        writer.writerow([key.replace("_", " ").title(), str(value)])
+                
+                writer.writerow([])
+                
+                # Decoder Hashes
+                if "decoder_hashes" in system_info:
+                    writer.writerow(["Decoder Integrity Verification"])
+                    writer.writerow(["Decoder", "File Path", "SHA256 Hash", "File Size", "Last Modified"])
+                    for decoder_name, hash_info in system_info["decoder_hashes"].items():
+                        if "error" in hash_info:
+                            writer.writerow([decoder_name, "Error", hash_info["error"], "", ""])
+                        else:
+                            writer.writerow([
+                                decoder_name,
+                                hash_info["file_path"],
+                                hash_info["sha256_hash"],
+                                hash_info["file_size"],
+                                hash_info["last_modified"]
+                            ])
+                
+                writer.writerow([])
+                
+                # Extraction Information
+                writer.writerow(["Extraction Information"])
+                writer.writerow(["Field", "Value"])
+                
+                # Input file details
+                writer.writerow(["Input File Path", extraction_info["input_file"]["path"]])
+                writer.writerow(["Input File Name", extraction_info["input_file"]["filename"]])
+                writer.writerow(["Input File Size (MB)", extraction_info["input_file"]["size_mb"]])
+                writer.writerow(["Input File SHA256", extraction_info["input_file"]["sha256_hash"]])
+                
+                # Output file details
+                writer.writerow(["Output File Path", extraction_info["output_file"]["path"]])
+                writer.writerow(["Output File Name", extraction_info["output_file"]["filename"]])
+                
+                # Extraction details
+                writer.writerow(["Decoder Used", extraction_info["extraction_details"]["decoder_used"]])
+                writer.writerow(["Entries Extracted", extraction_info["extraction_details"]["entries_extracted"]])
+
                     
         elif export_format == "json":
             json_data = {
@@ -1385,6 +1513,8 @@ def run_cli():
                     "extraction_timestamp": datetime.now().isoformat(),
                     "total_entries": len(entries)
                 },
+                "system_information": system_info,
+                "extraction_information": extraction_info,
                 "gps_entries": []
             }
             
@@ -1411,7 +1541,54 @@ def run_cli():
                 json.dump(json_data, jsonfile, indent=2, ensure_ascii=False, default=str)
         
         elif export_format == "geojson":
-            write_geojson(entries, output_file, selected_decoder)
+            # Create GeoJSON with enhanced metadata
+            features = []
+            
+            for i, entry in enumerate(entries):
+                # Skip invalid coordinates
+                if (entry.latitude == 0 and entry.longitude == 0) or \
+                   not (-90 <= entry.latitude <= 90) or \
+                   not (-180 <= entry.longitude <= 180):
+                    continue
+                
+                # Create feature
+                feature = {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [entry.longitude, entry.latitude]
+                    },
+                    "properties": {
+                        "id": i + 1,
+                        "timestamp": entry.timestamp,
+                        "latitude": entry.latitude,
+                        "longitude": entry.longitude,
+                    }
+                }
+                
+                # Add extra data if available
+                if entry.extra_data:
+                    feature["properties"].update(entry.extra_data)
+                
+                features.append(feature)
+            
+            # Create GeoJSON structure with diagnostic data
+            geojson = {
+                "type": "FeatureCollection",
+                "metadata": {
+                    "decoder": selected_decoder,
+                    "extraction_timestamp": datetime.now().isoformat(),
+                    "total_features": len(features),
+                    "coordinate_system": "WGS84",
+                    "creator": f"FENDER v{FENDER_VERSION}",
+                    "system_information": system_info,
+                    "extraction_information": extraction_info
+                },
+                "features": features
+            }
+            
+            with open(output_file, 'w', encoding='utf-8') as f:
+                json.dump(geojson, f, indent=2, ensure_ascii=False, default=str)
         
         print(f"\nSuccessfully extracted {len(entries)} GPS entries.")
         print(f"Results written to: {output_file}")
