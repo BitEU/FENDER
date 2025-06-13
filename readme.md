@@ -3,7 +3,9 @@
 FENDER is a powerful tool for extracting GPS location data from vehicle telematics binary files. It supports multiple vehicle manufacturers and provides an easy-to-use interface for forensic investigators and researchers.
 
 ## Feedback
-Your input helps make FENDER better! Please share bugs, feature requests, or suggestions by [creating a GitHub Issue](https://github.com/BitEU/FENDER/issues/new). Include details like your OS, file type, test file, and steps to reproduce any issues.
+Your input helps make FENDER better! Please share bugs, feature requests, or suggestions by [creating a GitHub Issue](https://github.com/BitEU/FENDER/issues/new). Include the diagnostic details in your test file, as well as your logs/fender.log file.
+
+I would also appreciate any assistance with analyzing QNX systems, as all of my attempts have failed thusfar. If you have experience in this, please contact me and we can work on adding it to FENDER!
 
 ## **Table of Contents**
 
@@ -38,6 +40,7 @@ Your input helps make FENDER better! Please share bugs, feature requests, or sug
     * [Common Issues](#common-issues)  
     * [Debug Mode](#debug-mode)  
 * [Todo](#todo)  
+* [Scoreboard](#scoreboard)
 * [Contributing](#contributing)  
 * [Credits](#credits)  
 
@@ -327,12 +330,52 @@ pytest test_main.py -v --log-cli-level=DEBUG
 * Improve unit testing
 * Make test files publically available
 
+## **Scoreboard**
+
+The list of vehicles supported by FENDER. This contains the most common vehicles in the United States. Those of which are crossed out are supported:
+
+* ~~Toyota Group~~
+  * ~~Toyota~~
+  * ~~Lexus~~
+* ~~Honda Motor Co~~
+  * ~~Honda~~
+  * ~~Acura~~
+* Nissan Motor Corp
+  * Nissan
+  * Infiniti
+* Hyundai Group
+  * Hyundai
+  * Kia
+* Ford Motor Company
+  * Ford
+  * Lincoln
+* ~~General Motors~~
+  * ~~GMC~~
+  * ~~Chevrolet~~
+  * ~~Buick~~
+  * ~~Cadillac~~
+* Stellantis
+  * Chrystler
+  * Dodge
+  * Ram
+  * Jeep
+  * Fiat
+* Volkswagen Group
+  * Volkswagen
+  * Porsche
+  * Audi
+* BMW Group
+  * BMW
+  * Mini
+* Volvo
+* Mercedes-Benz
+
 ## **Contributing**
 
 1. Fork the repository  
 2. Create a feature branch  
 3. Add your decoder to decoders/  
-4. Include test files for validation, otherwise contact sschiavone@pace.edu if they contain sensitive data
+4. Include test files for validation. If you are unable to publically supply them due to sensitive content or an ongoing investigation, please contact sschiavone@pace.edu.
 5. Submit a pull request
 
 ## **Credits**

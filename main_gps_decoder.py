@@ -33,7 +33,7 @@ except ImportError:
     PSUTIL_AVAILABLE = False
 
 # FENDER Version Information
-FENDER_VERSION = "1.1.8"
+FENDER_VERSION = "1.2.0"
 FENDER_BUILD_DATE = "June 13 2025"
 
 # Maximum file size (in GB) the program will load
