@@ -36,8 +36,8 @@ except ImportError:
 FENDER_VERSION = "1.2.0"
 FENDER_BUILD_DATE = "June 13 2025"
 
-# Maximum file size (in GB) the program will load
-sizeingb = 65
+# Maximum file size (in GB) the program will load (I see Hondas top out at 30, Hyundais in the 180s)
+sizeingb = 200
 
 # Setup comprehensive logging
 def setup_logging():
