@@ -318,7 +318,7 @@ pytest test_main.py -v --log-cli-level=DEBUG
 
 ## **Todo**
 
-* Optimizing speed and efficiency
+* Add QNX support
 * Plotting points on an interactive map
 * Include more data than just timestamps and geolocation
 * Batch processing
@@ -333,7 +333,7 @@ This is the current tally of vehicles supported by FENDER. This contains the mos
 
 <br>
 
-Supported vehicles:
+Fully supported vehicles:
 
 * Toyota Group
   * Toyota
@@ -349,6 +349,18 @@ Supported vehicles:
 
 <br>
 
+Vehicles with partial (parse from file/folder, not disk image) support:
+
+* Mercedes-Benz
+* Stellantis
+  * Chrystler
+  * Dodge
+  * Ram
+  * Jeep
+  * Fiat
+
+<br>
+
 Currently unsupported:
 
 * Nissan Motor Corp
@@ -360,12 +372,6 @@ Currently unsupported:
 * Ford Motor Company
   * Ford
   * Lincoln
-* Stellantis
-  * Chrystler
-  * Dodge
-  * Ram
-  * Jeep
-  * Fiat
 * Volkswagen Group
   * Volkswagen
   * Porsche
@@ -374,7 +380,7 @@ Currently unsupported:
   * BMW
   * Mini
 * Volvo
-* Mercedes-Benz
+* Tesla
 
 ## **Contributing**
 
