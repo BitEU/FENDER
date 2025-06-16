@@ -26,6 +26,8 @@ I would also appreciate any assistance with analyzing QNX systems, as all of my 
     * [OnStar Decoder](#onstar-decoder)  
     * [Toyota Decoder](#toyota-decoder)  
     * [Honda Decoder](#honda-decoder)  
+    * [Mercedes-Benz Decoder](#mercedes-benz-decoder)
+    * [Stellantis Decoder](#stellantis-decoder)]
   * [Installation from Source](#installation-from-source)  
     * [Windows](#windows)  
     * [Linux/macOS](#linuxmacos)  
@@ -73,6 +75,8 @@ python main\_gps\_decoder.py \--cli
 * **OnStar Gen 10+** \- Extracts GPS data from OnStar NAND dumps (.CE0 files)  
 * **Toyota TL19** \- Extracts GPS data from Toyota infotainment systems (.CE0 files)  
 * **Honda Telematics** \- Extracts GPS data from Honda Android eMMC images (.USER files)
+* **Mercedes-Benz** \- Extracts GPS data from Mercedes-Benz database files (.db files)
+* **Stellantis** \- Extracts GPS data from a folder holding Stellantis log files (folder)
 
 ### **Features**
 
@@ -110,7 +114,9 @@ FENDER/
 │   ├── \_\_init\_\_.py  
 │   ├── onstar\_decoder.py  
 │   ├── toyota\_decoder.py  
-│   └── honda\_decoder.py  
+│   ├── honda\_decoder.py  
+│   ├── mercedes\_decoder.py  
+│   └── stellantis\_decoder.py  
 └── requirements.txt
 
 #### **Core Components**
@@ -188,6 +194,59 @@ Process:
 * finish\_pos\_lat, finish\_pos\_lon \- Ending coordinates  
 * start\_pos\_time, finish\_pos\_time \- Timestamps
 
+#### **Mercedes-Benz Decoder**
+
+File Format: Mercedes-Benz log files and folders  
+Data Location: Text-based log files in various locations  
+Extraction Method: Folder-based recursive search and pattern matching  
+Process:
+
+1. Recursively scan folders for relevant log files  
+2. Parse log files for GPS coordinate patterns  
+3. Extract timestamp and location data using regex patterns  
+4. Convert coordinate formats to standard decimal degrees  
+
+**Key Log Patterns**:
+
+* Navigation system location logs  
+* Telematics service position reports  
+* COMAND system diagnostic logs  
+* Mercedes ME app synchronization data  
+
+**Data Format**:
+
+* Coordinates stored in various formats (decimal degrees, DMS)  
+* Timestamps typically in ISO format or local system time  
+* Additional vehicle status information often available in context  
+
+#### **Stellantis Decoder**
+
+File Format: Log files in persistent storage folders  
+Data Location: Debug logs, service logs, and navigation logs  
+Extraction Method: Recursive file search with multi-pattern matching  
+Key patterns:
+
+* SAL\_SDARS\_FUEL \- Navigation destination coordinates  
+* NW\_SOS \- Emergency call position data  
+* SAL\_KONA\_NAVI \- Navigation system coordinates  
+* GetCurrentLocAddressResponse \- Location service responses  
+* JSR179InterfaceImpl \- Low-level positioning with speed data  
+* NaviTelematicsDataRequest \- Telematics position reports  
+
+**Extraction Process**:
+
+1. Scan folder structure for log files matching predefined patterns  
+2. Parse files using regex patterns to extract GPS coordinates  
+3. Extract timestamps from log entries  
+4. Validate coordinates and convert to standard format  
+5. Sort entries chronologically  
+
+**Data Format**:
+
+* Coordinates stored as decimal degrees in text format  
+* Timestamps in various formats (MM/DD/YYYY HH:MM:SS.mmm or YYYY.MM.DD HH:MM:SS,mmm)  
+* Some patterns include additional data like speed and heading  
+
 ### **Installation from Source**
 
 #### **Windows**
@@ -241,6 +300,8 @@ python \-m PyInstaller \--onefile \--windowed \\
   \--hidden-import="decoders.honda\_decoder" \\  
   \--hidden-import="decoders.onstar\_decoder" \\  
   \--hidden-import="decoders.toyota\_decoder" \\  
+  \--hidden-import="decoders.mercedes\_decoder" \\  
+  \--hidden-import="decoders.stellantis\_decoder" \\  
   main\_gps\_decoder.py
 
 \# Output will be in dist/main\_gps\_decoder.exe
