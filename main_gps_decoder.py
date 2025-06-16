@@ -33,15 +33,18 @@ except ImportError:
     PSUTIL_AVAILABLE = False
 
 # FENDER Version Information
-FENDER_VERSION = "1.2.1"
+FENDER_VERSION = "1.2.2"
 FENDER_BUILD_DATE = "June 16 2025"
 
 # Maximum file size (in GB) the program will load (I see Hondas top out at 30, Hyundais in the 180s)
 sizeingb = 200
 
+# Duplicate filtering precision
+decimals_of_prec = 4
+
 # Setup comprehensive logging
 def setup_logging():
-    """Setup comprehensive logging with custom timestamp format"""
+    """Setup comprehensive logging with custom timestamp format that appends to a single log file"""
     # Create logs directory if it doesn't exist
     log_dir = Path("logs")
     log_dir.mkdir(exist_ok=True)
@@ -66,11 +69,11 @@ def setup_logging():
     for handler in logger.handlers[:]:
         logger.removeHandler(handler)
     
-    # File handler with rotation
-    file_handler = RotatingFileHandler(
+    # File handler with append mode (no rotation)
+    file_handler = logging.FileHandler(
         log_dir / 'fender.log',
-        maxBytes=10*1024*1024,  # 10MB
-        backupCount=5
+        mode='a',  # 'a' for append mode
+        encoding='utf-8'
     )
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(CustomFormatter())
@@ -1075,7 +1078,6 @@ class VehicleGPSDecoder:
         self.processing_start_time = None
         self.execution_mode = "GUI"
         self.filter_duplicates = tk.BooleanVar(value=False)
-        self.precision_var = tk.IntVar(value=4)
         
         logger.debug("Setting up window properties")
         
@@ -1341,28 +1343,11 @@ class VehicleGPSDecoder:
                                          bg='#1a1a1a')
         filter_toggle.pack(side='left', padx=(0, 20))
 
-        # Precision selection
-        precision_label = ttk.Label(toggle_frame, text="Precision:",
-                                   background='#1a1a1a', foreground='#cccccc',
-                                   font=('Segoe UI', 10))
-        precision_label.pack(side='left', padx=(0, 5))
-
-        # Precision spinbox
-        precision_spin = ttk.Spinbox(toggle_frame, from_=1, to=8,
-                                    textvariable=self.precision_var,
-                                    width=5, font=('Segoe UI', 10))
-        precision_spin.pack(side='left', padx=(0, 5))
-
-        decimals_label = ttk.Label(toggle_frame, text="decimal places",
-                                  background='#1a1a1a', foreground='#cccccc',
-                                  font=('Segoe UI', 10))
-        decimals_label.pack(side='left')
-
         # Info label
         info_label = ttk.Label(filter_frame, 
-                              text="When enabled, removes GPS entries with identical timestamps and coordinates within the specified precision",
-                              background='#1a1a1a', foreground='#888888',
-                              font=('Segoe UI', 9))
+                      text=f"When enabled, filter GPS entries with identical timestamps and coordinates within {decimals_of_prec} decimal places",
+                      background='#1a1a1a', foreground='#888888',
+                      font=('Segoe UI', 9))
         info_label.pack(anchor='w', pady=(5, 0))
 
         # Drop zone
@@ -1479,7 +1464,7 @@ class VehicleGPSDecoder:
     def apply_duplicate_filter(self, entries: List['GPSEntry']) -> List['GPSEntry']:
         """Apply duplicate filtering if enabled"""
         if self.filter_duplicates.get():
-            precision = self.precision_var.get()
+            precision = decimals_of_prec
             logger.info(f"Applying duplicate filter with precision={precision}")
             return filter_duplicate_entries(entries, precision, logger)
         else:
@@ -1742,8 +1727,8 @@ class VehicleGPSDecoder:
         logger.info(f"Output will be saved to: {output_path}")
     
         # Start processing in a separate thread
-        thread = threading.Thread(target=self.process_in_background, 
-                                args=(self.input_file, output_path))
+        thread = threading.Thread(target=self.process_in_background_with_filter,  # ← Correct method!
+            args=(self.input_file, output_path))
         thread.daemon = True
         thread.start()
         logger.debug("Started processing thread")
@@ -2249,8 +2234,7 @@ def run_cli():
     # Ask about duplicate filtering
     filter_choice = input("\nFilter duplicate entries? (y/n): ").strip().lower()
     if filter_choice == 'y':
-        precision = int(input("Enter precision (decimal places, 1-8): ").strip())
-        entries = filter_duplicate_entries(entries, precision, logger)
+        entries = filter_duplicate_entries(entries, decimals_of_prec, logger)
         print(f"Filtered to {len(entries)} unique entries")
 
     # Get system and extraction info for CLI

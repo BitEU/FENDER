@@ -66,7 +66,7 @@ class StellantisDecoder(BaseDecoder):
                 'pattern': r'GetCurrentLocAddressResponse.*?Latitude\s*-\s*([+-]?\d+\.?\d*)\s*,\s*Longitude\s*-\s*([+-]?\d+\.?\d*)',
                 'lat_group': 1,
                 'lon_group': 2,
-                'timestamp_pattern': r'^(\d{4}\.\d{2}\.\d{2}\s+\d{2}:\d{2}:\d{2},\d{3})',
+                'timestamp_pattern': r'^((\d{4}\.\d{2}\.\d{2}\s+\d{2}:\d{2}:\d{2},\d{3})|(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}:\d{2}\.\d{3}))',
                 'has_speed': False
             },
             
@@ -75,7 +75,7 @@ class StellantisDecoder(BaseDecoder):
                 'pattern': r'JSR179InterfaceImpl.*?Latitude:\s*([+-]?\d+\.?\d*);.*?Longitude:\s*([+-]?\d+\.?\d*);',
                 'lat_group': 1,
                 'lon_group': 2,
-                'timestamp_pattern': r'^(\d{4}\.\d{2}\.\d{2}\s+\d{2}:\d{2}:\d{2},\d{3})',
+                'timestamp_pattern': r'^((\d{4}\.\d{2}\.\d{2}\s+\d{2}:\d{2}:\d{2},\d{3})|(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}:\d{2}\.\d{3}))',
                 'speed_pattern': r'Speed:\s*([+-]?\d+\.?\d*);',
                 'has_speed': True
             },
