@@ -505,6 +505,79 @@ def get_file_hash(file_path: str) -> str:
         logger.error(f"Error calculating hash for {file_path}: {e}", exc_info=True)
         return f"Error calculating hash: {str(e)}"
 
+def filter_duplicate_entries(entries: List['GPSEntry'], precision: int = 4, logger=None) -> List['GPSEntry']:
+    """
+    Filter duplicate GPS entries based on timestamp and coordinate precision.
+    
+    Args:
+        entries: List of GPSEntry objects
+        precision: Number of decimal places to consider for coordinate comparison
+        logger: Logger instance for debug output
+        
+    Returns:
+        Filtered list of GPSEntry objects with duplicates removed
+    """
+    if not entries:
+        return entries
+    
+    if logger:
+        logger.info(f"Starting duplicate filtering with {len(entries)} entries, precision={precision} decimals")
+    
+    # Group entries by timestamp
+    timestamp_groups = {}
+    for entry in entries:
+        if entry.timestamp not in timestamp_groups:
+            timestamp_groups[entry.timestamp] = []
+        timestamp_groups[entry.timestamp].append(entry)
+    
+    if logger:
+        logger.debug(f"Grouped entries into {len(timestamp_groups)} unique timestamps")
+    
+    # Filter duplicates within each timestamp group
+    filtered_entries = []
+    duplicates_removed = 0
+    
+    for timestamp, group_entries in timestamp_groups.items():
+        if len(group_entries) == 1:
+            # Only one entry for this timestamp, keep it
+            filtered_entries.append(group_entries[0])
+        else:
+            # Multiple entries for same timestamp, check coordinates
+            kept_entries = []
+            
+            for entry in group_entries:
+                is_duplicate = False
+                
+                # Check against already kept entries
+                for kept_entry in kept_entries:
+                    # Round coordinates to specified precision
+                    lat1_rounded = round(entry.latitude, precision)
+                    lon1_rounded = round(entry.longitude, precision)
+                    lat2_rounded = round(kept_entry.latitude, precision)
+                    lon2_rounded = round(kept_entry.longitude, precision)
+                    
+                    # Check if coordinates match at the specified precision
+                    if lat1_rounded == lat2_rounded and lon1_rounded == lon2_rounded:
+                        is_duplicate = True
+                        duplicates_removed += 1
+                        break
+                
+                if not is_duplicate:
+                    kept_entries.append(entry)
+            
+            filtered_entries.extend(kept_entries)
+            
+            if logger and len(group_entries) > len(kept_entries):
+                logger.debug(f"Timestamp {timestamp}: Reduced from {len(group_entries)} to {len(kept_entries)} entries")
+    
+    # Sort by timestamp to maintain order
+    filtered_entries.sort(key=lambda x: x.timestamp)
+    
+    if logger:
+        logger.info(f"Duplicate filtering complete: {len(entries)} -> {len(filtered_entries)} entries ({duplicates_removed} duplicates removed)")
+    
+    return filtered_entries
+
 def get_extraction_info(decoder_name: str, input_file: str, output_file: str, entry_count: int, processing_time: float = None):
     """Gather extraction-specific information"""
     logger.info("Gathering extraction information")
@@ -890,6 +963,108 @@ class CustomRadiobutton(tk.Canvas):
         """Handle variable change"""
         self.draw()
 
+class CustomToggleButton(tk.Canvas):
+    """Custom toggle button that matches the dark theme"""
+    def __init__(self, parent, text, variable, **kwargs):
+        super().__init__(parent, highlightthickness=0, **kwargs)
+        
+        self.text = text
+        self.variable = variable
+        self.is_on = variable.get()
+        
+        # Colors
+        self.bg_color = '#1a1a1a'
+        self.off_color = '#666666'
+        self.on_color = '#4a9eff'
+        self.slider_color = '#ffffff'
+        self.text_color = '#cccccc'
+        self.text_on_color = '#ffffff'
+        
+        # Dimensions
+        self.toggle_width = 50
+        self.toggle_height = 24
+        self.slider_size = 18
+        
+        # Calculate total width
+        text_width = len(text) * 8 + 70  # Text + toggle + padding
+        canvas_width = max(150, text_width)
+        
+        # Configure canvas
+        self.configure(bg=self.bg_color, width=canvas_width, height=30)
+        
+        # Bind events
+        self.bind('<Button-1>', self.toggle)
+        self.bind('<Enter>', self.on_enter)
+        self.bind('<Leave>', self.on_leave)
+        
+        # Watch variable changes
+        self.variable.trace('w', self.on_variable_change)
+        
+        # Initial draw
+        self.draw()
+    
+    def draw(self):
+        """Draw the toggle button"""
+        self.delete('all')
+
+        # Update state
+        self.is_on = self.variable.get()
+
+        # Draw toggle background as a rounded rectangle
+        toggle_x = 10
+        toggle_y = (30 - self.toggle_height) // 2
+        r = self.toggle_height // 2  # radius for rounded ends
+
+        x1 = toggle_x
+        y1 = toggle_y
+        x2 = toggle_x + self.toggle_width
+        y2 = toggle_y + self.toggle_height
+
+        fill_color = self.on_color if self.is_on else self.off_color
+
+        # Draw left arc
+        self.create_arc(x1, y1, x1 + 2*r, y2, start=90, extent=180, fill=fill_color, outline=fill_color)
+        # Draw right arc
+        self.create_arc(x2 - 2*r, y1, x2, y2, start=270, extent=180, fill=fill_color, outline=fill_color)
+        # Draw center rectangle
+        self.create_rectangle(x1 + r, y1, x2 - r, y2, fill=fill_color, outline=fill_color, width=0)
+
+        # Draw slider
+        slider_margin = 3
+        if self.is_on:
+            slider_x = toggle_x + self.toggle_width - self.slider_size - slider_margin
+        else:
+            slider_x = toggle_x + slider_margin
+
+        slider_y = toggle_y + slider_margin
+
+        self.create_oval(slider_x, slider_y,
+                         slider_x + self.slider_size,
+                         slider_y + self.slider_size,
+                         fill=self.slider_color, outline='', width=0)
+
+        # Draw text
+        text_x = toggle_x + self.toggle_width + 15
+        text_color = self.text_on_color if self.is_on else self.text_color
+        self.create_text(text_x, 15, text=self.text, anchor='w',
+                         fill=text_color, font=('Segoe UI', 10))
+    
+    def toggle(self, event=None):
+        """Toggle the button state"""
+        self.variable.set(not self.variable.get())
+    
+    def on_enter(self, event):
+        """Handle mouse enter"""
+        self.configure(cursor='hand2')
+    
+    def on_leave(self, event):
+        """Handle mouse leave"""
+        self.configure(cursor='')
+    
+    def on_variable_change(self, *args):
+        """Handle variable change"""
+        self.draw()
+
 class VehicleGPSDecoder:
     def __init__(self, root):
         logger.info("Initializing VehicleGPSDecoder GUI")
@@ -899,6 +1074,8 @@ class VehicleGPSDecoder:
         self.root.configure(bg='#1a1a1a')
         self.processing_start_time = None
         self.execution_mode = "GUI"
+        self.filter_duplicates = tk.BooleanVar(value=False)
+        self.precision_var = tk.IntVar(value=4)
         
         logger.debug("Setting up window properties")
         
@@ -1146,6 +1323,48 @@ class VehicleGPSDecoder:
                                          bg='#1a1a1a')
         geojson_radio.pack(side='left')
 
+        # Filter controls
+        filter_frame = ttk.Frame(right_panel, style='Dark.TFrame')
+        filter_frame.pack(fill='x', pady=(15, 15))
+
+        filter_label = ttk.Label(filter_frame, text="Filtering Options:",
+                                background='#1a1a1a', foreground='#ffffff',
+                                font=('Segoe UI', 12, 'bold'))
+        filter_label.pack(anchor='w', pady=(0, 5))
+
+        toggle_frame = ttk.Frame(filter_frame, style='Dark.TFrame')
+        toggle_frame.pack(anchor='w')
+
+        # Filter duplicates toggle
+        filter_toggle = CustomToggleButton(toggle_frame, "Filter Duplicate Entries",
+                                         self.filter_duplicates,
+                                         bg='#1a1a1a')
+        filter_toggle.pack(side='left', padx=(0, 20))
+
+        # Precision selection
+        precision_label = ttk.Label(toggle_frame, text="Precision:",
+                                   background='#1a1a1a', foreground='#cccccc',
+                                   font=('Segoe UI', 10))
+        precision_label.pack(side='left', padx=(0, 5))
+
+        # Precision spinbox
+        precision_spin = ttk.Spinbox(toggle_frame, from_=1, to=8,
+                                    textvariable=self.precision_var,
+                                    width=5, font=('Segoe UI', 10))
+        precision_spin.pack(side='left', padx=(0, 5))
+
+        decimals_label = ttk.Label(toggle_frame, text="decimal places",
+                                  background='#1a1a1a', foreground='#cccccc',
+                                  font=('Segoe UI', 10))
+        decimals_label.pack(side='left')
+
+        # Info label
+        info_label = ttk.Label(filter_frame, 
+                              text="When enabled, removes GPS entries with identical timestamps and coordinates within the specified precision",
+                              background='#1a1a1a', foreground='#888888',
+                              font=('Segoe UI', 9))
+        info_label.pack(anchor='w', pady=(5, 0))
+
         # Drop zone
         logger.debug("Creating file drop zone")
         self.drop_frame = ttk.Frame(right_panel, style='DropZone.TFrame')
@@ -1206,6 +1425,155 @@ class VehicleGPSDecoder:
         
         logger.debug("Drag and drop setup complete")
     
+    def add_filter_controls(self):
+        """Add filter controls to the UI - call this in setup_ui()"""
+        # This should be added after the export format selection in setup_ui()
+    
+        # Filter frame
+        filter_frame = ttk.Frame(self.right_panel, style='Dark.TFrame')
+        filter_frame.pack(fill='x', pady=(15, 15))
+    
+        # Filter label
+        filter_label = ttk.Label(filter_frame, text="Filtering Options:",
+                                background='#1a1a1a', foreground='#ffffff',
+                                font=('Segoe UI', 12, 'bold'))
+        filter_label.pack(anchor='w', pady=(0, 5))
+    
+        # Toggle and precision frame
+        toggle_frame = ttk.Frame(filter_frame, style='Dark.TFrame')
+        toggle_frame.pack(anchor='w')
+    
+        # Filter duplicates toggle
+        self.filter_duplicates = tk.BooleanVar(value=False)
+        filter_toggle = CustomToggleButton(toggle_frame, "Filter Duplicate Entries",
+                                         self.filter_duplicates,
+                                         bg='#1a1a1a')
+        filter_toggle.pack(side='left', padx=(0, 20))
+    
+        # Precision selection
+        precision_label = ttk.Label(toggle_frame, text="Precision:",
+                                   background='#1a1a1a', foreground='#cccccc',
+                                   font=('Segoe UI', 10))
+        precision_label.pack(side='left', padx=(0, 5))
+    
+        # Precision spinbox
+        self.precision_var = tk.IntVar(value=4)
+        precision_spin = ttk.Spinbox(toggle_frame, from_=1, to=8,
+                                    textvariable=self.precision_var,
+                                    width=5, font=('Segoe UI', 10))
+        precision_spin.pack(side='left', padx=(0, 5))
+    
+        decimals_label = ttk.Label(toggle_frame, text="decimal places",
+                                  background='#1a1a1a', foreground='#cccccc',
+                                  font=('Segoe UI', 10))
+        decimals_label.pack(side='left')
+    
+        # Info label
+        info_label = ttk.Label(filter_frame, 
+                              text="When enabled, removes GPS entries with identical timestamps and coordinates within the specified precision",
+                              background='#1a1a1a', foreground='#888888',
+                              font=('Segoe UI', 9))
+        info_label.pack(anchor='w', pady=(5, 0))
+
+
+    def apply_duplicate_filter(self, entries: List['GPSEntry']) -> List['GPSEntry']:
+        """Apply duplicate filtering if enabled"""
+        if self.filter_duplicates.get():
+            precision = self.precision_var.get()
+            logger.info(f"Applying duplicate filter with precision={precision}")
+            return filter_duplicate_entries(entries, precision, logger)
+        else:
+            logger.info("Duplicate filtering is disabled")
+            return entries
+
+
+    # Modified process_in_background method (update the part after entries are extracted):
+    def process_in_background_with_filter(self, input_path, output_path):
+        """Modified version of process_in_background that includes filtering"""
+        logger.info(f"Background processing started for: {input_path}")
+    
+        def progress_callback(status, percent):
+            logger.debug(f"Progress update: {status} ({percent}%)")
+            self.root.after(0, self.update_progress, status, percent)
+
+        try:
+            # Pass stop_event to decoder
+            logger.info("Calling decoder extract_gps_data method")
+            entries, error = self.current_decoder.extract_gps_data(
+                input_path, progress_callback, stop_event=self.stop_event
+            )
+        
+            if error:
+                logger.error(f"Decoder returned error: {error}")
+                self.root.after(0, self.processing_error, error)
+            else:
+                logger.info(f"Decoder extracted {len(entries)} entries")
+            
+                # Apply duplicate filter if enabled
+                filtered_entries = self.apply_duplicate_filter(entries)
+            
+                # Update progress if filtering was applied
+                if len(filtered_entries) < len(entries):
+                    self.root.after(0, self.update_progress, 
+                                   f"Filtered {len(entries) - len(filtered_entries)} duplicates...", 80)
+            
+                # Write to selected format
+                format_type = self.export_format.get()
+                logger.info(f"Writing output in {format_type} format")
+                self.root.after(0, self.update_progress, f"Writing {format_type.upper()} file...", 85)
+            
+                if format_type == "xlsx":
+                    self.write_xlsx(filtered_entries, output_path)
+                elif format_type == "csv":
+                    self.write_csv(filtered_entries, output_path)
+                elif format_type == "json":
+                    self.write_json(filtered_entries, output_path)
+                elif format_type == "geojson":
+                    write_geojson(filtered_entries, output_path, self.selected_decoder_name)
+            
+                # Report both original and filtered counts if filtering was applied
+                if self.filter_duplicates.get() and len(filtered_entries) < len(entries):
+                    result_info = {
+                        'original_count': len(entries),
+                        'filtered_count': len(filtered_entries),
+                        'duplicates_removed': len(entries) - len(filtered_entries)
+                    }
+                    self.root.after(0, self.processing_complete_with_filter_info, 
+                                  result_info, output_path)
+                else:
+                    self.root.after(0, self.processing_complete, len(filtered_entries), output_path)
+                
+        except Exception as e:
+            logger.error(f"Exception during background processing: {e}", exc_info=True)
+            self.root.after(0, self.processing_error, str(e))
+
+
+    def processing_complete_with_filter_info(self, result_info, output_path):
+        """Modified processing complete handler that shows filtering information"""
+        logger.info(f"Processing completed with filtering. Original: {result_info['original_count']}, "
+                    f"Filtered: {result_info['filtered_count']}, Output: {output_path}")
+    
+        self.is_processing = False
+        self.process_btn.configure(state='normal', text='Process File', style='Dark.TButton')
+        self.browse_btn.configure(state='normal')
+        self.clear_btn.configure(state='normal', style='Dark.TButton')
+        self.stop_btn.configure(state='disabled', style='Disabled.TButton')
+    
+        self.progress_label.configure(text="Processing complete!")
+        self.progress['value'] = 100
+    
+        output_filename = os.path.basename(output_path)
+        format_type = self.export_format.get().upper()
+    
+        result_text = (f"✓ Successfully extracted {result_info['filtered_count']} GPS entries to {format_type}:\n"
+                       f" {output_filename}\n"
+                       f" ({result_info['duplicates_removed']} duplicates removed from {result_info['original_count']} total entries)")
+    
+        self.results_label.configure(text=result_text)
+    
+        processing_time = (datetime.now() - self.processing_start_time).total_seconds() if self.processing_start_time else 0
+        logger.info(f"Total processing time: {processing_time:.2f} seconds")
+
     def on_decoder_changed(self):
         """Handle decoder type change"""
         logger.info(f"Decoder changed to: {self.selected_decoder_name}")
@@ -1875,8 +2243,15 @@ def run_cli():
         logger.debug(f"CLI progress: {status} ({percent}%)")
     
     entries, error = decoder.extract_gps_data(input_file, progress_callback)
-    
+
     processing_time = (datetime.now() - processing_start_time).total_seconds()
+
+    # Ask about duplicate filtering
+    filter_choice = input("\nFilter duplicate entries? (y/n): ").strip().lower()
+    if filter_choice == 'y':
+        precision = int(input("Enter precision (decimal places, 1-8): ").strip())
+        entries = filter_duplicate_entries(entries, precision, logger)
+        print(f"Filtered to {len(entries)} unique entries")
 
     # Get system and extraction info for CLI
     system_info = get_system_info(
