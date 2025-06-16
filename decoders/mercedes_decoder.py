@@ -28,22 +28,32 @@ class MercedesDecoder(BaseDecoder):
         return "Drop your Mercedes NTG5*2 SQLite database\nhere or click to browse"
 
     def get_xlsx_headers(self) -> List[str]:
-        headers = ['TrailId', 'BeginTime_ISO', 'EndTime_ISO', 'GPS_Longitude', 'GPS_Latitude']
+        headers = [
+            'TrailId',
+            'BeginTime_UTC',
+            'EndTime_UTC',
+            'GPS_Longitude',
+            'GPS_Latitude',
+            'PathOffset',
+            'SourceTable'
+        ]
         self._logger.debug(f"XLSX headers: {len(headers)} columns")
         return headers
     
     def format_entry_for_xlsx(self, entry: GPSEntry) -> List[Any]:
         """Format a GPSEntry into a row for the XLSX file"""
         self._logger.debug(f"Formatting entry for XLSX: lat={entry.latitude}, lon={entry.longitude}")
-        
+
         row = [
             entry.extra_data.get('TrailId', ''),
-            entry.extra_data.get('BeginTime_ISO', ''),
-            entry.extra_data.get('EndTime_ISO', ''),
+            entry.extra_data.get('BeginTime_UTC', ''),
+            entry.extra_data.get('EndTime_UTC', ''),
             entry.longitude if entry.longitude != 0 else 'ERROR',
-            entry.latitude if entry.latitude != 0 else 'ERROR'
+            entry.latitude if entry.latitude != 0 else 'ERROR',
+            entry.extra_data.get('PathOffset', ''),
+            entry.extra_data.get('SourceTable', '')
         ]
-        
+
         return row
     
     def extract_gps_data(self, file_path: str, progress_callback=None, stop_event=None) -> Tuple[List[GPSEntry], Optional[str]]:
@@ -116,15 +126,11 @@ class MercedesDecoder(BaseDecoder):
                 trail_id = trail_dict['TrailId']
                 begin_time = trail_dict['BeginTime']
                 end_time = trail_dict['EndTime']
-                bounding_data = trail_dict['Bounding']
                 path_data = trail_dict['Path']
                 
                 # Convert timestamps to ISO format
                 begin_time_iso = self.unix_to_iso(begin_time)
                 end_time_iso = self.unix_to_iso(end_time)
-                
-                # Decode bounding box
-                bbox_info = self.decode_bounding_box(bounding_data) if bounding_data else {}
                 
                 # Decode path events
                 events = self.decode_path_events(path_data, begin_time) if path_data else []
@@ -132,12 +138,9 @@ class MercedesDecoder(BaseDecoder):
                 # Create base record
                 base_record = {
                     'TrailId': trail_id,
-                    'BeginTime_ISO': begin_time_iso,
-                    'EndTime_ISO': end_time_iso
+                    'BeginTime_UTC': begin_time_iso,
+                    'EndTime_UTC': end_time_iso
                 }
-                
-                # Add bounding box info
-                base_record.update(bbox_info)
                 
                 # If no GPS events in path, just add the trail info
                 if not events:
@@ -157,7 +160,12 @@ class MercedesDecoder(BaseDecoder):
                                 latitude=event['latitude'],
                                 longitude=event['longitude'],
                                 timestamp=begin_time_iso if begin_time_iso else '',
-                                extra_data=base_record.copy()
+                                extra_data={
+                                    **base_record,
+                                    'PathOffset': event.get('offset', ''),
+                                    'SourceTable': 'Trails',
+                                    'TrailId': trail_id
+                                }
                             )
                             entries.append(gps_entry)
                             valid_entries += 1
@@ -178,12 +186,27 @@ class MercedesDecoder(BaseDecoder):
             elapsed_time = time.time() - start_time
             self._logger.info(f"Processing complete. Valid entries: {valid_entries}, Invalid entries: {invalid_entries}")
             
+            # Deduplicate entries before returning
+            unique = set()
+            deduped_entries = []
+            for entry in entries:
+                # Use a tuple of identifying fields as the deduplication key
+                key = (
+                    round(entry.latitude, 7),  # rounding to avoid float precision issues
+                    round(entry.longitude, 7),
+                    entry.timestamp,
+                    tuple(sorted(entry.extra_data.items()))
+                )
+                if key not in unique:
+                    unique.add(key)
+                    deduped_entries.append(entry)
+
             if progress_callback:
                 progress_callback("Processing complete!", 90)
                 self._log_progress("Processing complete", 90)
 
-            self._log_extraction_complete(len(entries), elapsed_time)
-            return entries, None
+            self._log_extraction_complete(len(deduped_entries), elapsed_time)
+            return deduped_entries, None
 
         except sqlite3.Error as e:
             error_msg = f"SQLite database error: {str(e)}"
@@ -214,107 +237,54 @@ class MercedesDecoder(BaseDecoder):
         
         return (encoded_value * 180.0) / self.INT32_MAX
     
-    def decode_bounding_box(self, bounding_data):
-        """
-        Decode the bounding box binary data
-        Format: 01 01 01 00 + two sets of GPS coordinates (lon, lat, elevation)
-        """
-        if len(bounding_data) < 28:  # 4 byte header + 6*4 bytes for coordinates
-            return {}
-        
-        try:
-            # Skip the 4-byte header (01 01 01 00)
-            coords_data = bounding_data[4:]
-            
-            # Unpack 6 32-bit little-endian integers
-            coords = struct.unpack('<6I', coords_data)
-            
-            # First set: longitude, latitude, elevation
-            lon1 = self.decode_gps_coordinate(coords[0])
-            lat1 = self.decode_gps_coordinate(coords[1])
-            elev1 = coords[2]  # Elevation in centimeters
-            
-            # Second set: longitude, latitude, elevation  
-            lon2 = self.decode_gps_coordinate(coords[3])
-            lat2 = self.decode_gps_coordinate(coords[4])
-            elev2 = coords[5]  # Elevation in centimeters
-            
-            self._logger.debug(f"Decoded bounding box: ({lat1:.6f}, {lon1:.6f}) to ({lat2:.6f}, {lon2:.6f})")
-            
-            # Return empty dict as specified in original code
-            return {}
-        except struct.error as e:
-            self._logger.error(f"Error decoding bounding box: {e}")
-            return {}
-    
     def decode_path_events(self, path_data, start_timestamp):
         """
         Decode the path binary data to extract GPS events
         Format: 04 01 01 00 + segments with various event types
         """
         events = []
-        
         if len(path_data) < 8:
             return events
-        
-        # Skip header (04 01 01 00) and get number of segments
-        if len(path_data) < 6:
-            return events
-            
         try:
             num_segments = struct.unpack('<H', path_data[4:6])[0]
             offset = 6
-            
-            self._logger.debug(f"Decoding path with {num_segments} segments")
-            
             for segment_idx in range(num_segments):
                 if offset + 4 > len(path_data):
                     break
-                
-                # Read segment size
                 segment_size = struct.unpack('<I', path_data[offset:offset+4])[0]
                 if offset + segment_size > len(path_data):
                     break
-                
                 segment_data = path_data[offset:offset+segment_size]
-                
-                # Parse events within this segment
-                event_offset = 16  # Skip segment header (size + 3 words)
-                
+                event_offset = 16
                 while event_offset + 5 < len(segment_data):
-                    # Read event ID and distance
+                    event_start = offset + event_offset  # Absolute offset in path_data
                     event_id = segment_data[event_offset]
                     distance = struct.unpack('<I', segment_data[event_offset+1:event_offset+5])[0]
-                    
                     event_offset += 5
-                    
                     if event_id == 1:  # GPS coordinates
                         if event_offset + 12 <= len(segment_data):
                             coords = struct.unpack('<3I', segment_data[event_offset:event_offset+12])
                             lon = self.decode_gps_coordinate(coords[0])
                             lat = self.decode_gps_coordinate(coords[1])
-                            elev = coords[2]  # Elevation in centimeters
-                            
+                            elev = coords[2]
                             events.append({
                                 'longitude': lon,
                                 'latitude': lat,
-                                'elevation': elev
+                                'elevation': elev,
+                                'offset': hex(event_start)
                             })
                             event_offset += 12
-                    
                     elif event_id == 2:  # Milliseconds since start
                         if event_offset + 4 <= len(segment_data):
                             millis = struct.unpack('<I', segment_data[event_offset:event_offset+4])[0]
                             # Not used in output
                             event_offset += 4
-                    
                     elif event_id == 3:  # Timestamp
                         if event_offset + 8 <= len(segment_data):
                             # Skip 4 zero bytes, then read timestamp
                             timestamp = struct.unpack('<I', segment_data[event_offset+4:event_offset+8])[0]
                             # Not used in output
                             event_offset += 8
-                    
                     else:
                         # Skip unknown events
                         if event_id == 14 or event_id == 16:
@@ -325,13 +295,9 @@ class MercedesDecoder(BaseDecoder):
                             event_offset += 1
                         else:
                             break  # Unknown event, stop parsing
-                
                 offset += segment_size
-                
         except struct.error as e:
             self._logger.error(f"Error decoding path events: {e}")
-        
-        self._logger.debug(f"Decoded {len(events)} GPS events from path data")
         return events
     
     def unix_to_iso(self, unix_timestamp):
@@ -339,7 +305,7 @@ class MercedesDecoder(BaseDecoder):
         if unix_timestamp and unix_timestamp > 0:
             try:
                 dt = datetime.fromtimestamp(unix_timestamp, tz=timezone.utc)
-                return dt.isoformat()
+                return dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
             except (ValueError, OSError):
                 self._logger.warning(f"Invalid Unix timestamp: {unix_timestamp}")
                 return None

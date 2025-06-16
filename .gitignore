@@ -13,6 +13,7 @@ v17/
 *.bin
 *.CE0
 *.USER
+*.log.*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
