@@ -359,35 +359,38 @@ class StellantisDecoder(BaseDecoder):
     
     def _extract_timestamp(self, line: str, timestamp_pattern: str) -> str:
         """Extract and format timestamp from log line"""
-        
+    
         timestamp_match = re.search(timestamp_pattern, line)
         if not timestamp_match:
             self._logger.debug(f"No timestamp found in line: {line[:100]}...")
             return ""
-        
+    
         timestamp_str = timestamp_match.group(1)
-        
+    
         try:
             # Parse different timestamp formats
             if '/' in timestamp_str and '.' in timestamp_str:
                 # Format: 12/29/2022 13:51:18.429 or [08/09/2022 00:12:57.403
                 clean_ts = timestamp_str.strip('[]')
                 dt = datetime.strptime(clean_ts, '%m/%d/%Y %H:%M:%S.%f')
+                # Add UTC timezone
+                dt = dt.replace(tzinfo=timezone.utc)
             elif '.' in timestamp_str and ',' in timestamp_str:
                 # Format: 2023.01.21 06:46:56,618
                 dt = datetime.strptime(timestamp_str, '%Y.%m.%d %H:%M:%S,%f')
+                # Add UTC timezone
+                dt = dt.replace(tzinfo=timezone.utc)
             else:
                 # Fallback - return as is
                 self._logger.debug(f"Unknown timestamp format: {timestamp_str}")
                 return timestamp_str
-            
+        
             # Convert to UTC ISO format
-            dt = dt.replace(tzinfo=timezone.utc)
             formatted = dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-            
+        
             self._logger.debug(f"Parsed timestamp: {timestamp_str} -> {formatted}")
             return formatted
-            
+        
         except ValueError as e:
             self._logger.debug(f"Error parsing timestamp '{timestamp_str}': {e}")
             return timestamp_str  # Return original if parsing fails
@@ -407,18 +410,23 @@ class StellantisDecoder(BaseDecoder):
     def _sort_entries_by_timestamp(self, entries: List[GPSEntry]) -> List[GPSEntry]:
         """Sort GPS entries by timestamp"""
         self._logger.debug(f"Sorting {len(entries)} entries by timestamp")
-        
+    
         def timestamp_key(entry):
             try:
                 if entry.timestamp:
                     # Parse the ISO format timestamp for sorting
-                    return datetime.fromisoformat(entry.timestamp.replace('Z', '+00:00'))
+                    dt = datetime.fromisoformat(entry.timestamp.replace('Z', '+00:00'))
+                    # Ensure timezone awareness
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    return dt
                 else:
                     return datetime.min.replace(tzinfo=timezone.utc)
-            except:
+            except Exception as e:
+                self._logger.debug(f"Error parsing timestamp '{entry.timestamp}': {e}")
                 return datetime.min.replace(tzinfo=timezone.utc)
-        
+    
         sorted_entries = sorted(entries, key=timestamp_key)
         self._logger.debug(f"Entries sorted successfully")
-        
+    
         return sorted_entries
