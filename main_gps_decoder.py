@@ -369,6 +369,37 @@ def validate_file_path(file_path, allowed_extensions=None):
         logger.error(f"Path validation error: {e}", exc_info=True)
         return False, f"Path validation error: {str(e)}"
 
+def validate_folder_path(folder_path):
+    """Validate folder path for security"""
+    logger.info(f"Validating folder path: {folder_path}")
+    
+    try:
+        # Resolve to absolute path to prevent traversal
+        abs_path = os.path.abspath(folder_path)
+        logger.debug(f"Resolved to absolute path: {abs_path}")
+        
+        # Check if folder exists
+        if not os.path.exists(abs_path):
+            logger.warning(f"Folder does not exist: {abs_path}")
+            return False, "Folder does not exist"
+        
+        # Check if it's actually a directory
+        if not os.path.isdir(abs_path):
+            logger.warning(f"Path is not a folder: {abs_path}")
+            return False, "Path is not a folder"
+        
+        # Check if folder is accessible
+        if not os.access(abs_path, os.R_OK):
+            logger.warning(f"Folder is not readable: {abs_path}")
+            return False, "Folder is not readable"
+        
+        logger.info(f"Folder validation successful: {abs_path}")
+        return True, abs_path
+        
+    except Exception as e:
+        logger.error(f"Folder validation error: {e}", exc_info=True)
+        return False, f"Folder validation error: {str(e)}"
+
 def write_geojson(entries: List[GPSEntry], output_path: str, decoder_name: str = "Unknown"):
     """Write GPS entries to GeoJSON format"""
     logger.info(f"Writing {len(entries)} entries to GeoJSON file: {output_path}")
@@ -434,21 +465,40 @@ def write_geojson(entries: List[GPSEntry], output_path: str, decoder_name: str =
         raise
 
 def get_file_hash(file_path: str) -> str:
-    """Calculate SHA256 hash of the input file"""
-    logger.debug(f"Calculating SHA256 hash for file: {file_path}")
+    """Calculate SHA256 hash of the input file or folder"""
+    logger.debug(f"Calculating SHA256 hash for: {file_path}")
     
     try:
         sha256_hash = hashlib.sha256()
-        bytes_processed = 0
         
-        with open(file_path, "rb") as f:
-            # Read file in chunks to handle large files
-            for chunk in iter(lambda: f.read(4096), b""):
-                sha256_hash.update(chunk)
-                bytes_processed += len(chunk)
+        if os.path.isdir(file_path):
+            # For folders, create a hash of all file paths and their modification times
+            logger.debug("Hashing folder structure")
+            file_list = []
+            for root, dirs, files in os.walk(file_path):
+                for file in sorted(files):  # Sort for consistent hash
+                    file_path_full = os.path.join(root, file)
+                    try:
+                        mtime = os.path.getmtime(file_path_full)
+                        file_list.append(f"{file_path_full}:{mtime}")
+                    except:
+                        pass
+            
+            # Hash the file list
+            sha256_hash.update("\n".join(file_list).encode('utf-8'))
+            hash_result = sha256_hash.hexdigest()
+            logger.debug(f"Folder structure hash calculated: {hash_result}")
+        else:
+            # Original file hashing logic
+            bytes_processed = 0
+            with open(file_path, "rb") as f:
+                for chunk in iter(lambda: f.read(4096), b""):
+                    sha256_hash.update(chunk)
+                    bytes_processed += len(chunk)
+            
+            hash_result = sha256_hash.hexdigest()
+            logger.debug(f"File hash calculated: {hash_result} ({bytes_processed} bytes processed)")
         
-        hash_result = sha256_hash.hexdigest()
-        logger.debug(f"Hash calculated successfully: {hash_result} ({bytes_processed} bytes processed)")
         return hash_result
         
     except Exception as e:
@@ -883,6 +933,22 @@ class VehicleGPSDecoder:
         
         logger.info("GUI initialization complete")
     
+    def decoder_supports_folders(self, decoder_name: str) -> bool:
+        """Check if the decoder supports folder input instead of files"""
+        logger.debug(f"Checking if decoder supports folders: {decoder_name}")
+    
+        try:
+            decoder_class = self.decoder_registry.get_decoder(decoder_name)
+            decoder_instance = decoder_class()
+            # Check if get_supported_extensions returns empty list (indicates folder support)
+            extensions = decoder_instance.get_supported_extensions()
+            supports_folders = len(extensions) == 0
+            logger.debug(f"Decoder {decoder_name} supports folders: {supports_folders}")
+            return supports_folders
+        except Exception as e:
+            logger.error(f"Error checking folder support for {decoder_name}: {e}")
+            return False
+
     def select_decoder(self, decoder_name: str):
         """Handle decoder selection from the button list."""
         logger.info(f"Selecting decoder: {decoder_name}")
@@ -1153,58 +1219,101 @@ class VehicleGPSDecoder:
         if self.input_file:
             logger.debug("Clearing current file due to decoder change")
             self.clear_file()
+
+        # Update browse button text based on decoder type
+        if self.decoder_supports_folders(self.selected_decoder_name):
+            self.browse_btn.configure(text="Browse Folders")
+        else:
+            self.browse_btn.configure(text="Browse Files")
     
     def browse_file(self):
-        logger.info("Browse file dialog opened")
-        
+        logger.info("Browse dialog opened")
+    
         if self.is_processing:
             logger.warning("Browse attempted while processing")
             return
+    
+        # Check if decoder supports folders
+        if self.decoder_supports_folders(self.selected_decoder_name):
+            logger.info(f"Decoder {self.selected_decoder_name} requires folder selection")
         
-        decoder_class = self.decoder_registry.get_decoder(self.selected_decoder_name)
-        decoder_instance = decoder_class()
-        extensions = decoder_instance.get_supported_extensions()
-        logger.debug(f"Supported extensions for {self.selected_decoder_name}: {extensions}")
+            folder_path = filedialog.askdirectory(
+                title=f"Select {self.selected_decoder_name} Data Folder"
+            )
         
-        filetypes = []
-        if extensions:
-            ext_str = ";".join([f"*{ext}" for ext in extensions])
-            filetypes.append((f"{self.selected_decoder_name} files", ext_str))
-        filetypes.append(("All files", "*.*"))
-        
-        file_path = filedialog.askopenfilename(
-            title=f"Select {self.selected_decoder_name} Binary File",
-            filetypes=filetypes
-        )
-        
-        if file_path:
-            logger.info(f"File selected: {file_path}")
-            # Validate file path
-            is_valid, result = validate_file_path(file_path, extensions)
-            if is_valid:
-                self.set_input_file(result)
+            if folder_path:
+                logger.info(f"Folder selected: {folder_path}")
+                self.set_input_file(folder_path)
             else:
-                logger.error(f"File validation failed: {result}")
-                messagebox.showerror("File Validation Error", result)
+                logger.debug("Folder selection cancelled")
         else:
-            logger.debug("File selection cancelled")
+            # Original file selection logic
+            decoder_class = self.decoder_registry.get_decoder(self.selected_decoder_name)
+            decoder_instance = decoder_class()
+            extensions = decoder_instance.get_supported_extensions()
+            logger.debug(f"Supported extensions for {self.selected_decoder_name}: {extensions}")
+        
+            filetypes = []
+            if extensions:
+                ext_str = ";".join([f"*{ext}" for ext in extensions])
+                filetypes.append((f"{self.selected_decoder_name} files", ext_str))
+            filetypes.append(("All files", "*.*"))
+        
+            file_path = filedialog.askopenfilename(
+                title=f"Select {self.selected_decoder_name} Binary File",
+                filetypes=filetypes
+            )
+        
+            if file_path:
+                logger.info(f"File selected: {file_path}")
+                # Validate file path
+                is_valid, result = validate_file_path(file_path, extensions)
+                if is_valid:
+                    self.set_input_file(result)
+                else:
+                    logger.error(f"File validation failed: {result}")
+                    messagebox.showerror("File Validation Error", result)
+            else:
+                logger.debug("File selection cancelled")
     
     def set_input_file(self, file_path):
-        logger.info(f"Setting input file: {file_path}")
-        
+        logger.info(f"Setting input path: {file_path}")
+    
         self.input_file = file_path
-        filename = os.path.basename(file_path)
-        file_size = os.path.getsize(file_path)
-        size_mb = file_size / (1024 * 1024)
+    
+        # Check if it's a folder or file
+        if os.path.isdir(file_path):
+            folder_name = os.path.basename(file_path)
+            # Count files in folder for size estimation
+            total_size = 0
+            file_count = 0
+            for root, dirs, files in os.walk(file_path):
+                for file in files:
+                    file_count += 1
+                    try:
+                        total_size += os.path.getsize(os.path.join(root, file))
+                    except:
+                        pass
         
-        logger.debug(f"File details - Name: {filename}, Size: {size_mb:.2f} MB")
+            size_mb = total_size / (1024 * 1024)
+            logger.debug(f"Folder details - Name: {folder_name}, Files: {file_count}, Total size: {size_mb:.2f} MB")
         
-        self.drop_label.configure(text=f"Selected: {filename}")
-        self.file_info_label.configure(text=f"Size: {size_mb:.2f} MB")
+            self.drop_label.configure(text=f"Selected Folder: {folder_name}")
+            self.file_info_label.configure(text=f"Contains {file_count} files, Total size: {size_mb:.2f} MB")
+        else:
+            filename = os.path.basename(file_path)
+            file_size = os.path.getsize(file_path)
+            size_mb = file_size / (1024 * 1024)
+        
+            logger.debug(f"File details - Name: {filename}, Size: {size_mb:.2f} MB")
+        
+            self.drop_label.configure(text=f"Selected: {filename}")
+            self.file_info_label.configure(text=f"Size: {size_mb:.2f} MB")
+    
         self.process_btn.configure(state='normal', style='Dark.TButton')
         self.clear_btn.configure(state='normal', style='Dark.TButton')
-        
-        logger.info("Input file set successfully")
+    
+        logger.info("Input path set successfully")
     
     def clear_file(self):
         logger.info("Clearing current file")
@@ -1618,29 +1727,46 @@ class VehicleGPSDecoder:
             logger.debug("Stop event set")
     
     def on_file_drop(self, event):
-        logger.info("File dropped onto drop zone")
-        
+        logger.info("Item dropped onto drop zone")
+    
         if self.is_processing:
-            logger.warning("File drop ignored - currently processing")
+            logger.warning("Drop ignored - currently processing")
             return
-            
-        file_path = event.data.strip().split()[0]
-        logger.debug(f"Dropped file path: {file_path}")
         
-        if os.path.isfile(file_path):
-            # Validate dropped file
-            decoder_class = self.decoder_registry.get_decoder(self.selected_decoder_name)
-            decoder_instance = decoder_class()
-            extensions = decoder_instance.get_supported_extensions()
-            
-            is_valid, result = validate_file_path(file_path, extensions)
-            if is_valid:
-                self.set_input_file(result)
+        dropped_path = event.data.strip().strip('{}')  # Handle paths with spaces
+        logger.debug(f"Dropped path: {dropped_path}")
+    
+        # Check if decoder supports folders
+        if self.decoder_supports_folders(self.selected_decoder_name):
+            if os.path.isdir(dropped_path):
+                # Validate dropped folder
+                is_valid, result = validate_folder_path(dropped_path)
+                if is_valid:
+                    self.set_input_file(result)
+                else:
+                    logger.error(f"Dropped folder validation failed: {result}")
+                    messagebox.showerror("Folder Validation Error", result)
             else:
-                logger.error(f"Dropped file validation failed: {result}")
-                messagebox.showerror("File Validation Error", result)
+                logger.warning(f"Decoder {self.selected_decoder_name} requires a folder, not a file")
+                messagebox.showwarning("Invalid Input", 
+                                     f"{self.selected_decoder_name} decoder requires a folder, not a file.")
         else:
-            logger.warning(f"Dropped item is not a file: {file_path}")
+            if os.path.isfile(dropped_path):
+                # Original file validation logic
+                decoder_class = self.decoder_registry.get_decoder(self.selected_decoder_name)
+                decoder_instance = decoder_class()
+                extensions = decoder_instance.get_supported_extensions()
+            
+                is_valid, result = validate_file_path(dropped_path, extensions)
+                if is_valid:
+                    self.set_input_file(result)
+                else:
+                    logger.error(f"Dropped file validation failed: {result}")
+                    messagebox.showerror("File Validation Error", result)
+            else:
+                logger.warning(f"Dropped item is not a file: {dropped_path}")
+                messagebox.showwarning("Invalid Input", 
+                                     f"{self.selected_decoder_name} decoder requires a file, not a folder.")
 
 def run_cli():
     """Run the CLI version with enhanced export options"""
@@ -1697,20 +1823,36 @@ def run_cli():
         except ValueError:
             print("Please enter a valid number.")
     
-    # Get file path
-    input_file = input(f"\nEnter the path to the {selected_decoder} file: ").strip()
-    logger.info(f"CLI input file: {input_file}")
-    
-    # Validate file
+    # Check if decoder supports folders
     decoder_class = registry.get_decoder(selected_decoder)
     decoder_instance = decoder_class()
     extensions = decoder_instance.get_supported_extensions()
+
+    if len(extensions) == 0:  # Folder-based decoder
+        input_path = input(f"\nEnter the path to the {selected_decoder} data FOLDER: ").strip()
+        logger.info(f"CLI input folder: {input_path}")
     
-    is_valid, result = validate_file_path(input_file, extensions)
-    if not is_valid:
-        logger.error(f"CLI file validation failed: {result}")
-        print(f"Error: {result}")
-        return
+        # Validate folder
+        is_valid, result = validate_folder_path(input_path)
+        if not is_valid:
+            logger.error(f"CLI folder validation failed: {result}")
+            print(f"Error: {result}")
+            return
+    
+        input_file = result
+    else:
+        # Original file input logic
+        input_file = input(f"\nEnter the path to the {selected_decoder} file: ").strip()
+        logger.info(f"CLI input file: {input_file}")
+    
+        # Validate file
+        is_valid, result = validate_file_path(input_file, extensions)
+        if not is_valid:
+            logger.error(f"CLI file validation failed: {result}")
+            print(f"Error: {result}")
+            return
+    
+        input_file = result
     
     input_file = result
     
