@@ -380,12 +380,16 @@ pytest test_main.py -v --log-cli-level=DEBUG
 ## **Todo**
 
 * Add QNX support
+* Modularize the main file (main_window.py for GUI components, cli_interface.py for CLI logic, file_operations.py for file handling, system_info.py for system information gathering)
 * Plotting points on an interactive map
 * Include more data than just timestamps and geolocation
 * Batch processing
 * Implement anomoly detection to flag any rows that arent in line eith the rest of the data
 * Make this program compliant with leading guidelines (ISO 27037? NIST 800-86?)
 * Improve unit testing
+* KML export to Google Earth
+* Input sanitization
+* Memory efficient processing
 * Make test files publically available
 
 ## **Scoreboard**
