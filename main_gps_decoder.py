@@ -33,8 +33,8 @@ except ImportError:
     PSUTIL_AVAILABLE = False
 
 # FENDER Version Information
-FENDER_VERSION = "1.2.2"
-FENDER_BUILD_DATE = "June 16 2025"
+FENDER_VERSION = "0.2.2"
+FENDER_BUILD_DATE = "June 17 2025"
 
 # Maximum file size (in GB) the program will load (I see Hondas top out at 30, Hyundais in the 180s)
 sizeingb = 200
