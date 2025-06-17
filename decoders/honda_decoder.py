@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import struct
 import sqlite3
@@ -10,7 +10,7 @@ import logging
 import time
 
 # Import base classes
-from base_decoder import BaseDecoder, GPSEntry
+from src.core.base_decoder import BaseDecoder, GPSEntry
 
 # Setup logger for this module
 logger = logging.getLogger(__name__)

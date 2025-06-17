@@ -20,13 +20,13 @@ import logging
 from datetime import datetime
 from typing import List
 
-from base_decoder import BaseDecoder, GPSEntry
-from file_operations import (
+from src.core.base_decoder import BaseDecoder, GPSEntry
+from src.utils.file_operations import (
     validate_file_path, validate_folder_path, sanitize_filename,
     write_geojson, write_kml, filter_duplicate_entries, get_resource_path
 )
-from system_info import get_system_info, get_extraction_info
-from cli_interface import DecoderRegistry
+from src.utils.system_info import get_system_info, get_extraction_info
+from src.cli.cli_interface import DecoderRegistry
 
 # FENDER Version Information
 FENDER_VERSION = "0.2.2"
@@ -871,13 +871,13 @@ class VehicleGPSDecoder:
                         processing_time
                     )
                     
-                    from file_operations import write_geojson_report, log_report_hash
+                    from src.utils.file_operations import write_geojson_report, log_report_hash
                     write_geojson_report(filtered_entries, output_path, self.selected_decoder_name, 
                                        system_info, extraction_info, examiner_name, case_number)
                     log_report_hash(output_path, logger)
                 elif format_type == "kml":
                     write_kml(filtered_entries, output_path, self.selected_decoder_name)
-                    from file_operations import log_report_hash
+                    from src.utils.file_operations import log_report_hash
                     log_report_hash(output_path, logger)
             
                 # Report both original and filtered counts if filtering was applied
@@ -947,7 +947,7 @@ class VehicleGPSDecoder:
         case_number = self.case_number.get().strip() if self.case_number.get().strip() else None
         
         # Use the updated file_operations function
-        from file_operations import write_excel_report, log_report_hash
+        from src.utils.file_operations import write_excel_report, log_report_hash
         write_excel_report(entries, output_path, self.selected_decoder_name, 
                           system_info, extraction_info, self.current_decoder, 
                           examiner_name, case_number)
@@ -985,7 +985,7 @@ class VehicleGPSDecoder:
         case_number = self.case_number.get().strip() if self.case_number.get().strip() else None
         
         # Use the updated file_operations function
-        from file_operations import write_csv_report, log_report_hash
+        from src.utils.file_operations import write_csv_report, log_report_hash
         write_csv_report(entries, output_path, self.selected_decoder_name, 
                         system_info, extraction_info, self.current_decoder, 
                         examiner_name, case_number)
@@ -1023,7 +1023,7 @@ class VehicleGPSDecoder:
         case_number = self.case_number.get().strip() if self.case_number.get().strip() else None
         
         # Use the updated file_operations function
-        from file_operations import write_json_report, log_report_hash
+        from src.utils.file_operations import write_json_report, log_report_hash
         write_json_report(entries, output_path, self.selected_decoder_name, 
                          system_info, extraction_info, self.current_decoder, 
                          examiner_name, case_number)

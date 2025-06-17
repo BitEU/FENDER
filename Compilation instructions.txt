@@ -1,3 +1,0 @@
-Compile into single file:
-
-python -m PyInstaller --onefile --windowed --icon=car.ico --add-data "decoders;decoders" --add-data "base_decoder.py;." --add-data "car.ico;." --add-data "car.svg;." --add-data "cli_interface.py;." --add-data "file_operations.py;." --add-data "main_window.py;." --add-data "system_info.py;." --hidden-import="tkinterdnd2" --hidden-import="decoders.stellantis_decoder" --hidden-import="decoders.mercedes_decoder" --hidden-import="decoders.honda_decoder" --hidden-import="decoders.onstar_decoder" --hidden-import="decoders.toyota_decoder" main.py

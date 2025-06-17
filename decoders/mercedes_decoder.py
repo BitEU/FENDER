@@ -3,7 +3,7 @@ import struct
 import os
 from datetime import datetime, timezone
 from typing import List, Tuple, Optional, Any
-from base_decoder import BaseDecoder, GPSEntry
+from src.core.base_decoder import BaseDecoder, GPSEntry
 import logging
 import time
 

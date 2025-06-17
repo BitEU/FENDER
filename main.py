@@ -100,11 +100,11 @@ def main():
         
         if args.cli:
             logger.info("Running in CLI mode")
-            from cli_interface import run_cli
+            from src.cli.cli_interface import run_cli
             run_cli()
         else:
             logger.info("Running in GUI mode")
-            from main_window import run_gui
+            from src.gui.main_window import run_gui
             run_gui()
         
         logger.info("FENDER main() completed")

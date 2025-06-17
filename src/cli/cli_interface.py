@@ -11,13 +11,13 @@ import logging
 from datetime import datetime
 from typing import List
 
-from base_decoder import BaseDecoder, GPSEntry
-from file_operations import (
+from src.core.base_decoder import BaseDecoder, GPSEntry
+from src.utils.file_operations import (
     validate_file_path, validate_folder_path, sanitize_filename,
     filter_duplicate_entries, write_excel_report, write_csv_report,
     write_json_report, write_geojson_report, write_kml
 )
-from system_info import get_system_info, get_extraction_info
+from src.utils.system_info import get_system_info, get_extraction_info
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +40,8 @@ class DecoderRegistry:
             import importlib
             import inspect
             from pathlib import Path
-            
-            # Get the decoders directory
-            decoders_dir = Path(__file__).parent / "decoders"
+              # Get the decoders directory - go up to project root
+            decoders_dir = Path(__file__).parent.parent.parent / "decoders"
             if not decoders_dir.exists():
                 logger.error(f"Decoders directory not found: {decoders_dir}")
                 return
@@ -250,7 +249,7 @@ def run_cli():
             write_kml(entries, output_file, selected_decoder)
         
         # Log the SHA256 hash of the generated report
-        from file_operations import log_report_hash
+        from src.utils.file_operations import log_report_hash
         log_report_hash(output_file, logger)
         
         print(f"\\nSuccessfully extracted {len(entries)} GPS entries.")

@@ -4,7 +4,7 @@ import glob
 from datetime import datetime, timezone
 from typing import List, Tuple, Optional, Any
 from pathlib import Path
-from base_decoder import BaseDecoder, GPSEntry
+from src.core.base_decoder import BaseDecoder, GPSEntry
 import logging
 import time
 
