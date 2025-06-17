@@ -377,8 +377,14 @@ pytest test_main.py -v --log-cli-level=DEBUG
 * Batch processing
 * Implement anomoly detection to flag any rows that arent in line eith the rest of the data
 * Make this program compliant with leading guidelines (ISO 27037? NIST 800-86?)
+    * NIST 800-86
+        * Need more contextual reporting (offsets, file paths, etc)
+    *  ISO 27037
+        * Prompt for Examiner Name" and "Case Number"
+        * SHA256 hash the generated report to log file
+        * Reinforce the idea of only performing actions on copies of data
+        * Secure deletion of temporary files
 * Improve unit testing
-* KML export to Google Earth
 * Input sanitization
 * Memory efficient processing
 * Make test files publically available
