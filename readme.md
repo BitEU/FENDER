@@ -371,7 +371,6 @@ pytest test_main.py -v --log-cli-level=DEBUG
 ## **Todo**
 
 * Add QNX support
-* Modularize the main file (main_window.py for GUI components, cli_interface.py for CLI logic, file_operations.py for file handling, system_info.py for system information gathering)
 * Plotting points on an interactive map
 * Include more data than just timestamps and geolocation
 * Batch processing
@@ -379,11 +378,6 @@ pytest test_main.py -v --log-cli-level=DEBUG
 * Make this program compliant with leading guidelines (ISO 27037? NIST 800-86?)
     * NIST 800-86
         * Need more contextual reporting (offsets, file paths, etc)
-    *  ISO 27037
-        * Prompt for Examiner Name" and "Case Number"
-        * SHA256 hash the generated report to log file
-        * Reinforce the idea of only performing actions on copies of data
-        * Secure deletion of temporary files
 * Improve unit testing
 * Input sanitization
 * Memory efficient processing

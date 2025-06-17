@@ -233,7 +233,7 @@ class VehicleGPSDecoder:
         logger.info("Initializing VehicleGPSDecoder GUI")
         self.root = root
         self.root.title(f"FENDER v{FENDER_VERSION}")
-        self.root.geometry("1200x700")
+        self.root.geometry("1200x800")
         self.root.configure(bg='#1a1a1a')
         self.processing_start_time = None
         self.execution_mode = "GUI"
@@ -261,6 +261,10 @@ class VehicleGPSDecoder:
         self.selected_decoder_name = decoder_names[0]
         self.decoder_buttons = {}
         self.export_format = tk.StringVar(value="xlsx")  # Default to XLSX
+        
+        # Case information variables
+        self.examiner_name = tk.StringVar()
+        self.case_number = tk.StringVar()
 
         self.setup_styles()
         self.input_file = None
@@ -492,9 +496,49 @@ class VehicleGPSDecoder:
                              bg='#1a1a1a')
         kml_radio.pack(side='left')
 
-        # Filter controls
-        filter_frame = ttk.Frame(right_panel, style='Dark.TFrame')
-        filter_frame.pack(fill='x', pady=(15, 15))
+        # Filter controls        # Combined Case Information and Filtering Options section
+        logger.debug("Creating case information and filtering fields")
+        case_filter_frame = ttk.Frame(right_panel, style='Dark.TFrame')
+        case_filter_frame.pack(fill='x', pady=(15, 15))
+
+        case_label = ttk.Label(case_filter_frame, text="Case Information:",
+                              background='#1a1a1a', foreground='#ffffff',
+                              font=('Segoe UI', 12, 'bold'))
+        case_label.pack(anchor='w', pady=(0, 5))
+
+        # Main horizontal container for case info and filter toggle
+        main_container = ttk.Frame(case_filter_frame, style='Dark.TFrame')
+        main_container.pack(fill='x', pady=(0, 5))
+
+        # Left side - Case information fields
+        case_info_frame = ttk.Frame(main_container, style='Dark.TFrame')
+        case_info_frame.pack(side='left', fill='y', padx=(0, 30))        # Examiner Name field
+        examiner_frame = ttk.Frame(case_info_frame, style='Dark.TFrame')
+        examiner_frame.pack(fill='x', pady=(0, 5))
+        
+        examiner_label = ttk.Label(examiner_frame, text="Examiner Name:",
+                                  background='#1a1a1a', foreground='#cccccc',
+                                  font=('Segoe UI', 10))
+        examiner_label.pack(anchor='w')
+        
+        examiner_entry = ttk.Entry(examiner_frame, textvariable=self.examiner_name,
+                                  font=('Segoe UI', 10), width=25)
+        examiner_entry.pack(anchor='w', pady=(2, 0))        # Case Number field
+        case_num_frame = ttk.Frame(case_info_frame, style='Dark.TFrame')
+        case_num_frame.pack(fill='x', pady=(5, 0))
+        
+        case_num_label = ttk.Label(case_num_frame, text="Case Number:",
+                                  background='#1a1a1a', foreground='#cccccc',
+                                  font=('Segoe UI', 10))
+        case_num_label.pack(anchor='w')
+        
+        case_num_entry = ttk.Entry(case_num_frame, textvariable=self.case_number,
+                                  font=('Segoe UI', 10), width=25)
+        case_num_entry.pack(anchor='w', pady=(2, 0))
+
+        # Right side - Filtering options
+        filter_frame = ttk.Frame(main_container, style='Dark.TFrame')
+        filter_frame.pack(side='left', fill='both', expand=True)
 
         filter_label = ttk.Label(filter_frame, text="Filtering Options:",
                                 background='#1a1a1a', foreground='#ffffff',
@@ -511,7 +555,7 @@ class VehicleGPSDecoder:
         filter_toggle.pack(side='left', padx=(0, 20))
 
         # Info label
-        info_label = ttk.Label(filter_frame, 
+        info_label = ttk.Label(case_filter_frame, 
                       text=f"When enabled, filter GPS entries with identical timestamps and coordinates within {decimals_of_prec} decimal places",
                       background='#1a1a1a', foreground='#888888',
                       font=('Segoe UI', 9))
@@ -807,9 +851,34 @@ class VehicleGPSDecoder:
                 elif format_type == "json":
                     self.write_json(filtered_entries, output_path)
                 elif format_type == "geojson":
-                    write_geojson(filtered_entries, output_path, self.selected_decoder_name)
+                    # Get case information and system info for GeoJSON
+                    examiner_name = self.examiner_name.get().strip() if self.examiner_name.get().strip() else None
+                    case_number = self.case_number.get().strip() if self.case_number.get().strip() else None
+                    
+                    # Get system and extraction info
+                    system_info = get_system_info(
+                        input_file=self.input_file,
+                        output_file=output_path,
+                        execution_mode=self.execution_mode,
+                        decoder_registry=self.decoder_registry
+                    )
+                    processing_time = (datetime.now() - self.processing_start_time).total_seconds() if self.processing_start_time else None
+                    extraction_info = get_extraction_info(
+                        self.selected_decoder_name, 
+                        self.input_file, 
+                        output_path, 
+                        len(filtered_entries),
+                        processing_time
+                    )
+                    
+                    from file_operations import write_geojson_report, log_report_hash
+                    write_geojson_report(filtered_entries, output_path, self.selected_decoder_name, 
+                                       system_info, extraction_info, examiner_name, case_number)
+                    log_report_hash(output_path, logger)
                 elif format_type == "kml":
                     write_kml(filtered_entries, output_path, self.selected_decoder_name)
+                    from file_operations import log_report_hash
+                    log_report_hash(output_path, logger)
             
                 # Report both original and filtered counts if filtering was applied
                 if self.filter_duplicates.get() and len(filtered_entries) < len(entries):
@@ -854,31 +923,9 @@ class VehicleGPSDecoder:
         logger.info(f"Total processing time: {processing_time:.2f} seconds")
 
     def write_xlsx(self, entries: List[GPSEntry], output_path: str):
-        """Write GPS entries to XLSX file using decoder-specific format with extraction details"""
+        """Write GPS entries to XLSX file using updated file_operations function"""
         logger.info(f"Writing {len(entries)} entries to XLSX file: {output_path}")
         
-        wb = Workbook()
-    
-        # Main GPS Data worksheet
-        ws_data = wb.active
-        ws_data.title = "GPS Data"
-    
-        # Get headers from decoder
-        headers = self.current_decoder.get_xlsx_headers()
-        ws_data.append(headers)
-        logger.debug(f"XLSX headers: {headers}")
-    
-        # Write entries
-        for i, entry in enumerate(entries):
-            row = self.current_decoder.format_entry_for_xlsx(entry)
-            ws_data.append(row)
-            if i % 100 == 0:
-                logger.debug(f"Written {i} entries to XLSX")
-    
-        # Create Extraction Details worksheet
-        logger.debug("Creating Extraction Details worksheet")
-        ws_details = wb.create_sheet("Extraction Details")
-    
         # Get system and extraction info
         system_info = get_system_info(
             input_file=self.input_file,
@@ -894,73 +941,29 @@ class VehicleGPSDecoder:
             len(entries),
             processing_time
         )
-    
-        # Write extraction details
-        ws_details.append(["FENDER Extraction Report"])
-        ws_details.append([])
-    
-        # System Information
-        ws_details.append(["System Information"])
-        ws_details.append(["Field", "Value"])
-        for key, value in system_info.items():
-            if key != "decoder_hashes":  # Handle separately
-                ws_details.append([key.replace("_", " ").title(), str(value)])
-    
-        ws_details.append([])
-    
-        # Decoder Hashes
-        if "decoder_hashes" in system_info:
-            ws_details.append(["Decoder Integrity Verification"])
-            ws_details.append(["Decoder", "File Path", "SHA256 Hash", "File Size", "Last Modified"])
-            for decoder_name, hash_info in system_info["decoder_hashes"].items():
-                if "error" in hash_info:
-                    ws_details.append([decoder_name, "Error", hash_info["error"], "", ""])
-                else:
-                    ws_details.append([
-                        decoder_name,
-                        hash_info["file_path"],
-                        hash_info["sha256_hash"],
-                        hash_info["file_size"],
-                        hash_info["last_modified"]
-                    ])
-    
-        ws_details.append([])
-    
-        # Extraction Information
-        ws_details.append(["Extraction Information"])
-        ws_details.append(["Field", "Value"])
-    
-        # Input file details
-        ws_details.append(["Input File Path", extraction_info["input_file"]["path"]])
-        ws_details.append(["Input File Name", extraction_info["input_file"]["filename"]])
-        ws_details.append(["Input File Size (MB)", extraction_info["input_file"]["size_mb"]])
-        ws_details.append(["Input File SHA256", extraction_info["input_file"]["sha256_hash"]])
-    
-        # Output file details
-        ws_details.append(["Output File Path", extraction_info["output_file"]["path"]])
-        ws_details.append(["Output File Name", extraction_info["output_file"]["filename"]])
-    
-        # Extraction details
-        ws_details.append(["Decoder Used", extraction_info["extraction_details"]["decoder_used"]])
-        ws_details.append(["Entries Extracted", extraction_info["extraction_details"]["entries_extracted"]])
-        if processing_time:
-            ws_details.append(["Processing Time (seconds)", round(processing_time, 2)])
-    
-        # Format the details worksheet
-        ws_details.column_dimensions['A'].width = 25
-        ws_details.column_dimensions['B'].width = 50
-        ws_details.column_dimensions['C'].width = 70
-    
-        logger.debug("Saving XLSX file")
-        wb.save(output_path)
-        logger.info(f"XLSX file saved successfully: {output_path}")
-    
+        
+        # Get case information
+        examiner_name = self.examiner_name.get().strip() if self.examiner_name.get().strip() else None
+        case_number = self.case_number.get().strip() if self.case_number.get().strip() else None
+        
+        # Use the updated file_operations function
+        from file_operations import write_excel_report, log_report_hash
+        write_excel_report(entries, output_path, self.selected_decoder_name, 
+                          system_info, extraction_info, self.current_decoder, 
+                          examiner_name, case_number)
+        
+        # Log the SHA256 hash of the generated report
+        logger.info("About to calculate and log SHA256 hash of Excel report")
+        try:
+            hash_result = log_report_hash(output_path, logger)
+            logger.info(f"Excel report hash logging completed, result: {hash_result}")
+        except Exception as e:
+            logger.error(f"Error during Excel report hash logging: {e}", exc_info=True)
+
     def write_csv(self, entries: List[GPSEntry], output_path: str):
-        """Write GPS entries to CSV file with extraction details"""
+        """Write GPS entries to CSV file using updated file_operations function"""
         logger.info(f"Writing {len(entries)} entries to CSV file: {output_path}")
         
-        headers = self.current_decoder.get_xlsx_headers()
-    
         # Get system and extraction info
         system_info = get_system_info(
             input_file=self.input_file,
@@ -976,79 +979,27 @@ class VehicleGPSDecoder:
             len(entries),
             processing_time
         )
-    
-        with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.writer(csvfile)
         
-            # Write headers
-            writer.writerow(headers)
+        # Get case information
+        examiner_name = self.examiner_name.get().strip() if self.examiner_name.get().strip() else None
+        case_number = self.case_number.get().strip() if self.case_number.get().strip() else None
         
-            # Write entries
-            for i, entry in enumerate(entries):
-                row = self.current_decoder.format_entry_for_xlsx(entry)
-                writer.writerow(row)
-                if i % 100 == 0:
-                    logger.debug(f"Written {i} entries to CSV")
+        # Use the updated file_operations function
+        from file_operations import write_csv_report, log_report_hash
+        write_csv_report(entries, output_path, self.selected_decoder_name, 
+                        system_info, extraction_info, self.current_decoder, 
+                        examiner_name, case_number)
         
-            # Add separator
-            for _ in range(5):
-                writer.writerow([])
-        
-            # Write extraction details
-            writer.writerow(["FENDER Extraction Report"])
-            writer.writerow([])
-        
-            # System Information
-            writer.writerow(["System Information"])
-            writer.writerow(["Field", "Value"])
-            for key, value in system_info.items():
-                if key != "decoder_hashes":
-                    writer.writerow([key.replace("_", " ").title(), str(value)])
-        
-            writer.writerow([])
-        
-            # Decoder Hashes
-            if "decoder_hashes" in system_info:
-                writer.writerow(["Decoder Integrity Verification"])
-                writer.writerow(["Decoder", "File Path", "SHA256 Hash", "File Size", "Last Modified"])
-                for decoder_name, hash_info in system_info["decoder_hashes"].items():
-                    if "error" in hash_info:
-                        writer.writerow([decoder_name, "Error", hash_info["error"], "", ""])
-                    else:
-                        writer.writerow([
-                            decoder_name,
-                            hash_info["file_path"],
-                            hash_info["sha256_hash"],
-                            hash_info["file_size"],
-                            hash_info["last_modified"]
-                        ])
-        
-            writer.writerow([])
-        
-            # Extraction Information
-            writer.writerow(["Extraction Information"])
-            writer.writerow(["Field", "Value"])
-        
-            # Input file details
-            writer.writerow(["Input File Path", extraction_info["input_file"]["path"]])
-            writer.writerow(["Input File Name", extraction_info["input_file"]["filename"]])
-            writer.writerow(["Input File Size (MB)", extraction_info["input_file"]["size_mb"]])
-            writer.writerow(["Input File SHA256", extraction_info["input_file"]["sha256_hash"]])
-        
-            # Output file details
-            writer.writerow(["Output File Path", extraction_info["output_file"]["path"]])
-            writer.writerow(["Output File Name", extraction_info["output_file"]["filename"]])
-        
-            # Extraction details
-            writer.writerow(["Decoder Used", extraction_info["extraction_details"]["decoder_used"]])
-            writer.writerow(["Entries Extracted", extraction_info["extraction_details"]["entries_extracted"]])
-            if processing_time:
-                writer.writerow(["Processing Time (seconds)", round(processing_time, 2)])
-                
-        logger.info(f"CSV file saved successfully: {output_path}")
-    
+        # Log the SHA256 hash of the generated report
+        logger.info("About to calculate and log SHA256 hash of CSV report")
+        try:
+            hash_result = log_report_hash(output_path, logger)
+            logger.info(f"CSV report hash logging completed, result: {hash_result}")
+        except Exception as e:
+            logger.error(f"Error during CSV report hash logging: {e}", exc_info=True)
+
     def write_json(self, entries: List[GPSEntry], output_path: str):
-        """Write GPS entries to JSON file with extraction details"""
+        """Write GPS entries to JSON file using updated file_operations function"""
         logger.info(f"Writing {len(entries)} entries to JSON file: {output_path}")
         
         # Get system and extraction info
@@ -1066,47 +1017,24 @@ class VehicleGPSDecoder:
             len(entries),
             processing_time
         )
-    
-        json_data = {
-            "metadata": {
-                "decoder": self.selected_decoder_name,
-                "extraction_timestamp": datetime.now().isoformat(),
-                "total_entries": len(entries)
-            },
-            "system_information": system_info,
-            "extraction_information": extraction_info,
-            "gps_entries": []
-        }
-    
-        headers = self.current_decoder.get_xlsx_headers()
-    
-        for i, entry in enumerate(entries):
-            row = self.current_decoder.format_entry_for_xlsx(entry)
-            entry_dict = {}
         
-            # Map row data to headers
-            for j, header in enumerate(headers):
-                if j < len(row):
-                    entry_dict[header] = row[j]
+        # Get case information
+        examiner_name = self.examiner_name.get().strip() if self.examiner_name.get().strip() else None
+        case_number = self.case_number.get().strip() if self.case_number.get().strip() else None
         
-            # Add core GPS data
-            entry_dict.update({
-                "latitude": entry.latitude,
-                "longitude": entry.longitude,
-                "timestamp": entry.timestamp,
-                "extra_data": entry.extra_data
-            })
+        # Use the updated file_operations function
+        from file_operations import write_json_report, log_report_hash
+        write_json_report(entries, output_path, self.selected_decoder_name, 
+                         system_info, extraction_info, self.current_decoder, 
+                         examiner_name, case_number)
         
-            json_data["gps_entries"].append(entry_dict)
-            
-            if i % 100 == 0:
-                logger.debug(f"Processed {i} entries for JSON")
-    
-        logger.debug("Writing JSON to file")
-        with open(output_path, 'w', encoding='utf-8') as jsonfile:
-            json.dump(json_data, jsonfile, indent=2, ensure_ascii=False, default=str)
-            
-        logger.info(f"JSON file saved successfully: {output_path}")
+        # Log the SHA256 hash of the generated report
+        logger.info("About to calculate and log SHA256 hash of JSON report")
+        try:
+            hash_result = log_report_hash(output_path, logger)
+            logger.info(f"JSON report hash logging completed, result: {hash_result}")
+        except Exception as e:
+            logger.error(f"Error during JSON report hash logging: {e}", exc_info=True)
     
     def update_progress(self, status, percent):
         """Update progress display"""

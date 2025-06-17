@@ -143,6 +143,17 @@ def run_cli():
         except ValueError:
             print("Please enter a valid number.")
     
+    # Prompt for case information
+    print("\\n--- Case Information ---")
+    examiner_name = input("Enter examiner name (optional): ").strip()
+    case_number = input("Enter case number (optional): ").strip()
+    
+    # Log case information
+    if examiner_name:
+        logger.info(f"CLI examiner name: {examiner_name}")
+    if case_number:
+        logger.info(f"CLI case number: {case_number}")
+    
     # Check if decoder supports folders
     decoder_class = registry.get_decoder(selected_decoder)
     decoder_instance = decoder_class()
@@ -216,29 +227,31 @@ def run_cli():
         execution_mode="CLI",
         decoder_registry=registry
     )
-    extraction_info = get_extraction_info(selected_decoder, input_file, output_file, len(entries), processing_time)
-
-    # Write to selected format
+    extraction_info = get_extraction_info(selected_decoder, input_file, output_file, len(entries), processing_time)    # Write to selected format
     try:
         if export_format == "xlsx":
             logger.debug("Writing XLSX output")
-            write_excel_report(entries, output_file, selected_decoder, system_info, extraction_info, decoder)
+            write_excel_report(entries, output_file, selected_decoder, system_info, extraction_info, decoder, examiner_name, case_number)
             
         elif export_format == "csv":
             logger.debug("Writing CSV output")
-            write_csv_report(entries, output_file, selected_decoder, system_info, extraction_info, decoder)
+            write_csv_report(entries, output_file, selected_decoder, system_info, extraction_info, decoder, examiner_name, case_number)
                 
         elif export_format == "json":
             logger.debug("Writing JSON output")
-            write_json_report(entries, output_file, selected_decoder, system_info, extraction_info, decoder)
+            write_json_report(entries, output_file, selected_decoder, system_info, extraction_info, decoder, examiner_name, case_number)
         
         elif export_format == "geojson":
             logger.debug("Writing GeoJSON output")
-            write_geojson_report(entries, output_file, selected_decoder, system_info, extraction_info)
+            write_geojson_report(entries, output_file, selected_decoder, system_info, extraction_info, examiner_name, case_number)
 
         elif export_format == "kml":
             logger.debug("Writing KML output")
             write_kml(entries, output_file, selected_decoder)
+        
+        # Log the SHA256 hash of the generated report
+        from file_operations import log_report_hash
+        log_report_hash(output_file, logger)
         
         print(f"\\nSuccessfully extracted {len(entries)} GPS entries.")
         print(f"Results written to: {output_file}")

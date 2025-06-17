@@ -464,7 +464,7 @@ def get_resource_path(relative_path):
     return resource_path
 
 
-def write_excel_report(entries: List, output_path: str, decoder_name: str, system_info: dict, extraction_info: dict, decoder_instance):
+def write_excel_report(entries: List, output_path: str, decoder_name: str, system_info: dict, extraction_info: dict, decoder_instance, examiner_name: str = None, case_number: str = None):
     """Write comprehensive Excel report with GPS data and metadata"""
     logger.info(f"Writing Excel report to: {output_path}")
     
@@ -483,10 +483,19 @@ def write_excel_report(entries: List, output_path: str, decoder_name: str, syste
     
     # Create Extraction Details worksheet
     ws_details = wb.create_sheet("Extraction Details")
-    
-    # Write extraction details
+      # Write extraction details
     ws_details.append(["FENDER Extraction Report"])
     ws_details.append([])
+    
+    # Case Information (if provided)
+    if examiner_name or case_number:
+        ws_details.append(["Case Information"])
+        ws_details.append(["Field", "Value"])
+        if examiner_name:
+            ws_details.append(["Examiner Name", examiner_name])
+        if case_number:
+            ws_details.append(["Case Number", case_number])
+        ws_details.append([])
     
     # System Information
     ws_details.append(["System Information"])
@@ -543,7 +552,7 @@ def write_excel_report(entries: List, output_path: str, decoder_name: str, syste
     logger.info(f"Excel report written successfully: {output_path}")
 
 
-def write_csv_report(entries: List, output_path: str, decoder_name: str, system_info: dict, extraction_info: dict, decoder_instance):
+def write_csv_report(entries: List, output_path: str, decoder_name: str, system_info: dict, extraction_info: dict, decoder_instance, examiner_name: str = None, case_number: str = None):
     """Write comprehensive CSV report with GPS data and metadata"""
     logger.info(f"Writing CSV report to: {output_path}")
     
@@ -563,10 +572,19 @@ def write_csv_report(entries: List, output_path: str, decoder_name: str, system_
         # Add separator
         for _ in range(3):
             writer.writerow([])
-        
-        # Write extraction details
+          # Write extraction details
         writer.writerow(["FENDER Extraction Report"])
         writer.writerow([])
+        
+        # Case Information (if provided)
+        if examiner_name or case_number:
+            writer.writerow(["Case Information"])
+            writer.writerow(["Field", "Value"])
+            if examiner_name:
+                writer.writerow(["Examiner Name", examiner_name])
+            if case_number:
+                writer.writerow(["Case Number", case_number])
+            writer.writerow([])
         
         # System Information
         writer.writerow(["System Information"])
@@ -617,7 +635,7 @@ def write_csv_report(entries: List, output_path: str, decoder_name: str, system_
     logger.info(f"CSV report written successfully: {output_path}")
 
 
-def write_json_report(entries: List, output_path: str, decoder_name: str, system_info: dict, extraction_info: dict, decoder_instance):
+def write_json_report(entries: List, output_path: str, decoder_name: str, system_info: dict, extraction_info: dict, decoder_instance, examiner_name: str = None, case_number: str = None):
     """Write comprehensive JSON report with GPS data and metadata"""
     logger.info(f"Writing JSON report to: {output_path}")
     
@@ -627,10 +645,17 @@ def write_json_report(entries: List, output_path: str, decoder_name: str, system
             "extraction_timestamp": datetime.now().isoformat(),
             "total_entries": len(entries)
         },
+        "case_information": {},
         "system_information": system_info,
         "extraction_information": extraction_info,
         "gps_entries": []
     }
+    
+    # Add case information if provided
+    if examiner_name:
+        json_data["case_information"]["examiner_name"] = examiner_name
+    if case_number:
+        json_data["case_information"]["case_number"] = case_number
     
     headers = decoder_instance.get_xlsx_headers()
     
@@ -657,7 +682,7 @@ def write_json_report(entries: List, output_path: str, decoder_name: str, system
     logger.info(f"JSON report written successfully: {output_path}")
 
 
-def write_geojson_report(entries: List, output_path: str, decoder_name: str, system_info: dict, extraction_info: dict):
+def write_geojson_report(entries: List, output_path: str, decoder_name: str, system_info: dict, extraction_info: dict, examiner_name: str = None, case_number: str = None):
     """Write comprehensive GeoJSON report with GPS data and metadata"""
     logger.info(f"Writing GeoJSON report to: {output_path}")
     
@@ -692,8 +717,7 @@ def write_geojson_report(entries: List, output_path: str, decoder_name: str, sys
             feature["properties"].update(entry.extra_data)
         
         features.append(feature)
-    
-    # Create GeoJSON structure with diagnostic data
+      # Create GeoJSON structure with diagnostic data
     geojson = {
         "type": "FeatureCollection",
         "metadata": {
@@ -702,13 +726,144 @@ def write_geojson_report(entries: List, output_path: str, decoder_name: str, sys
             "total_features": len(features),
             "coordinate_system": "WGS84",
             "creator": f"FENDER v{FENDER_VERSION}",
+            "case_information": {},
             "system_information": system_info,
             "extraction_information": extraction_info
         },
         "features": features
     }
     
+    # Add case information if provided
+    if examiner_name:
+        geojson["metadata"]["case_information"]["examiner_name"] = examiner_name
+    if case_number:
+        geojson["metadata"]["case_information"]["case_number"] = case_number
+    
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(geojson, f, indent=2, ensure_ascii=False, default=str)
     
     logger.info(f"GeoJSON report written successfully: {output_path}")
+
+
+def secure_delete_file(filepath):
+    """Securely delete a file by overwriting it multiple times before deletion"""
+    logger.info(f"Starting secure deletion of file: {filepath}")
+    
+    try:
+        if not os.path.exists(filepath):
+            logger.warning(f"File does not exist for secure deletion: {filepath}")
+            return True
+            
+        file_size = os.path.getsize(filepath)
+        logger.debug(f"File size to securely delete: {file_size} bytes")
+        
+        # Overwrite the file multiple times with different patterns
+        patterns = [b'\x00', b'\xFF', b'\xAA', b'\x55']
+        
+        for i, pattern in enumerate(patterns):
+            logger.debug(f"Overwrite pass {i+1}/{len(patterns)} with pattern {pattern.hex()}")
+            with open(filepath, 'rb+') as f:
+                f.seek(0)
+                remaining = file_size
+                chunk_size = 65536  # 64KB chunks
+                
+                while remaining > 0:
+                    write_size = min(chunk_size, remaining)
+                    f.write(pattern * write_size)
+                    remaining -= write_size
+                
+                f.flush()
+                os.fsync(f.fileno())  # Force write to disk
+        
+        # Final random overwrite pass
+        logger.debug("Final random overwrite pass")
+        with open(filepath, 'rb+') as f:
+            f.seek(0)
+            remaining = file_size
+            
+            while remaining > 0:
+                write_size = min(65536, remaining)
+                random_data = os.urandom(write_size)
+                f.write(random_data)
+                remaining -= write_size
+            
+            f.flush()
+            os.fsync(f.fileno())
+        
+        # Finally delete the file
+        os.remove(filepath)
+        logger.info(f"File securely deleted: {filepath}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error during secure deletion of {filepath}: {e}", exc_info=True)
+        # Fallback to regular deletion
+        try:
+            os.remove(filepath)
+            logger.warning(f"Fallback to regular deletion successful: {filepath}")
+            return True
+        except Exception as e2:
+            logger.error(f"Fallback deletion also failed for {filepath}: {e2}")
+            return False
+
+
+def secure_delete_directory(dirpath):
+    """Securely delete a directory and all its contents"""
+    logger.info(f"Starting secure deletion of directory: {dirpath}")
+    
+    try:
+        if not os.path.exists(dirpath):
+            logger.warning(f"Directory does not exist for secure deletion: {dirpath}")
+            return True
+        
+        # Recursively secure delete all files
+        for root, dirs, files in os.walk(dirpath, topdown=False):
+            # Delete all files in this directory
+            for file in files:
+                filepath = os.path.join(root, file)
+                if not secure_delete_file(filepath):
+                    logger.error(f"Failed to securely delete file: {filepath}")
+            
+            # Delete all subdirectories
+            for dir in dirs:
+                subdir_path = os.path.join(root, dir)
+                try:
+                    os.rmdir(subdir_path)
+                    logger.debug(f"Deleted directory: {subdir_path}")
+                except Exception as e:
+                    logger.error(f"Failed to delete directory {subdir_path}: {e}")
+        
+        # Finally delete the root directory
+        os.rmdir(dirpath)
+        logger.info(f"Directory securely deleted: {dirpath}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error during secure deletion of directory {dirpath}: {e}", exc_info=True)
+        # Fallback to regular deletion
+        try:
+            shutil.rmtree(dirpath)
+            logger.warning(f"Fallback to regular directory deletion successful: {dirpath}")
+            return True
+        except Exception as e2:
+            logger.error(f"Fallback directory deletion also failed for {dirpath}: {e2}")
+            return False
+
+
+def log_report_hash(output_path, logger_instance=None):
+    """Calculate and log the SHA256 hash of a generated report"""
+    if logger_instance is None:
+        logger_instance = logger
+    
+    try:
+        hash_value = get_file_hash_safe(output_path)
+        if hash_value:
+            logger_instance.info(f"Report generated: {output_path}")
+            logger_instance.info(f"Report SHA256 hash: {hash_value}")
+            return hash_value
+        else:
+            logger_instance.error(f"Failed to calculate hash for report: {output_path}")
+            return None
+    except Exception as e:
+        logger_instance.error(f"Error logging report hash for {output_path}: {e}")
+        return None

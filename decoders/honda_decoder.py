@@ -883,16 +883,23 @@ class HondaDecoder(BaseDecoder):
         return result
     
     def _cleanup_temp_files(self):
-        """Clean up all temporary files"""
-        self._logger.info(f"Cleaning up {len(self.temp_files)} temporary files")
+        """Clean up all temporary files using secure deletion"""
+        self._logger.info(f"Cleaning up {len(self.temp_files)} temporary files with secure deletion")
         
         cleaned = 0
         for temp_file in self.temp_files:
             try:
                 if os.path.exists(temp_file):
-                    os.unlink(temp_file)
-                    cleaned += 1
-                    self._logger.debug(f"Deleted temporary file: {temp_file}")
+                    # Use secure deletion for temporary files
+                    from file_operations import secure_delete_file
+                    if secure_delete_file(temp_file):
+                        cleaned += 1
+                        self._logger.debug(f"Securely deleted temporary file: {temp_file}")
+                    else:
+                        self._logger.warning(f"Secure deletion failed for {temp_file}, attempting regular deletion")
+                        os.unlink(temp_file)
+                        cleaned += 1
+                        self._logger.debug(f"Deleted temporary file (regular): {temp_file}")
             except Exception as e:
                 self._logger.error(f"Failed to delete temporary file {temp_file}: {e}")
                 pass
