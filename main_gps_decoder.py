@@ -467,6 +467,141 @@ def write_geojson(entries: List[GPSEntry], output_path: str, decoder_name: str =
         logger.error(f"Error writing GeoJSON file: {e}", exc_info=True)
         raise
 
+def write_kml(entries: List[GPSEntry], output_path: str, decoder_name: str = "Unknown"):
+    """Write GPS entries to KML format for Google Earth"""
+    logger.info(f"Writing {len(entries)} entries to KML file: {output_path}")
+    logger.debug(f"Using decoder: {decoder_name}")
+    
+    # KML header with XML declaration
+    kml_content = ['<?xml version="1.0" encoding="UTF-8"?>']
+    kml_content.append('<kml xmlns="http://www.opengis.net/kml/2.2">')
+    kml_content.append('  <Document>')
+    
+    # Document metadata
+    kml_content.append(f'    <name>FENDER GPS Data - {decoder_name}</name>')
+    kml_content.append(f'    <description>Extracted by FENDER v{FENDER_VERSION} on {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</description>')
+    
+    # Define styles for placemarks
+    kml_content.append('    <Style id="normalPin">')
+    kml_content.append('      <IconStyle>')
+    kml_content.append('        <color>ff0000ff</color>')  # Red color in KML format (aabbggrr)
+    kml_content.append('        <scale>0.8</scale>')
+    kml_content.append('        <Icon>')
+    kml_content.append('          <href>http://maps.google.com/mapfiles/kml/pushpin/red-pushpin.png</href>')
+    kml_content.append('        </Icon>')
+    kml_content.append('      </IconStyle>')
+    kml_content.append('      <LabelStyle>')
+    kml_content.append('        <scale>0.7</scale>')
+    kml_content.append('      </LabelStyle>')
+    kml_content.append('    </Style>')
+    
+    # Style for path/track (if we want to connect points)
+    kml_content.append('    <Style id="trackStyle">')
+    kml_content.append('      <LineStyle>')
+    kml_content.append('        <color>ff00ff00</color>')  # Green color
+    kml_content.append('        <width>2</width>')
+    kml_content.append('      </LineStyle>')
+    kml_content.append('    </Style>')
+    
+    # Create folder for all placemarks
+    kml_content.append('    <Folder>')
+    kml_content.append('      <name>GPS Locations</name>')
+    kml_content.append('      <open>1</open>')
+    
+    valid_entries = []
+    skipped_count = 0
+    
+    # Add placemarks for each GPS entry
+    for i, entry in enumerate(entries):
+        # Skip invalid coordinates
+        if (entry.latitude == 0 and entry.longitude == 0) or \
+           not (-90 <= entry.latitude <= 90) or \
+           not (-180 <= entry.longitude <= 180):
+            logger.debug(f"Skipping invalid coordinates at index {i}: lat={entry.latitude}, lon={entry.longitude}")
+            skipped_count += 1
+            continue
+        
+        valid_entries.append(entry)
+        
+        kml_content.append('      <Placemark>')
+        kml_content.append(f'        <name>Location {i + 1}</name>')
+        
+        # Build description with all available data
+        description_parts = []
+        description_parts.append(f'Timestamp: {entry.timestamp}')
+        description_parts.append(f'Latitude: {entry.latitude}')
+        description_parts.append(f'Longitude: {entry.longitude}')
+        
+        # Add extra data if available
+        if entry.extra_data:
+            for key, value in entry.extra_data.items():
+                if value and str(value).strip():
+                    description_parts.append(f'{key}: {value}')
+        
+        description = '<![CDATA[' + '<br/>'.join(description_parts) + ']]>'
+        kml_content.append(f'        <description>{description}</description>')
+        
+        kml_content.append('        <styleUrl>#normalPin</styleUrl>')
+        
+        # Add timestamp if available
+        if entry.timestamp and entry.timestamp.strip():
+            try:
+                # Convert timestamp to ISO format for KML
+                # Handle various timestamp formats
+                timestamp_str = entry.timestamp.strip()
+                if 'T' not in timestamp_str and ' ' in timestamp_str:
+                    timestamp_str = timestamp_str.replace(' ', 'T')
+                if not timestamp_str.endswith('Z'):
+                    timestamp_str += 'Z'
+                
+                kml_content.append('        <TimeStamp>')
+                kml_content.append(f'          <when>{timestamp_str}</when>')
+                kml_content.append('        </TimeStamp>')
+            except Exception as e:
+                logger.debug(f"Could not format timestamp for KML: {e}")
+        
+        kml_content.append('        <Point>')
+        kml_content.append(f'          <coordinates>{entry.longitude},{entry.latitude},0</coordinates>')
+        kml_content.append('        </Point>')
+        kml_content.append('      </Placemark>')
+    
+    kml_content.append('    </Folder>')
+    
+    # Optionally add a path connecting all points (useful for route visualization)
+    if len(valid_entries) > 1:
+        kml_content.append('    <Placemark>')
+        kml_content.append('      <name>GPS Track</name>')
+        kml_content.append('      <description>Path connecting all GPS points in chronological order</description>')
+        kml_content.append('      <styleUrl>#trackStyle</styleUrl>')
+        kml_content.append('      <LineString>')
+        kml_content.append('        <tessellate>1</tessellate>')
+        kml_content.append('        <coordinates>')
+        
+        # Sort entries by timestamp for proper path
+        sorted_entries = sorted(valid_entries, key=lambda x: x.timestamp if x.timestamp else '')
+        
+        for entry in sorted_entries:
+            kml_content.append(f'          {entry.longitude},{entry.latitude},0')
+        
+        kml_content.append('        </coordinates>')
+        kml_content.append('      </LineString>')
+        kml_content.append('    </Placemark>')
+    
+    kml_content.append('  </Document>')
+    kml_content.append('</kml>')
+    
+    logger.info(f"Created KML with {len(valid_entries)} valid placemarks, skipped {skipped_count} invalid entries")
+    
+    # Write to file
+    try:
+        logger.debug(f"Writing KML to file")
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(kml_content))
+        logger.info(f"KML file written successfully: {output_path}")
+    except Exception as e:
+        logger.error(f"Error writing KML file: {e}", exc_info=True)
+        raise
+
 def get_file_hash(file_path: str) -> str:
     """Calculate SHA256 hash of the input file or folder"""
     logger.debug(f"Calculating SHA256 hash for: {file_path}")
@@ -1325,6 +1460,11 @@ class VehicleGPSDecoder:
                                          bg='#1a1a1a')
         geojson_radio.pack(side='left')
 
+        kml_radio = CustomRadiobutton(format_frame, "KML (.kml)", 
+                             self.export_format, "kml",
+                             bg='#1a1a1a')
+        kml_radio.pack(side='left')
+
         # Filter controls
         filter_frame = ttk.Frame(right_panel, style='Dark.TFrame')
         filter_frame.pack(fill='x', pady=(15, 15))
@@ -1515,6 +1655,9 @@ class VehicleGPSDecoder:
                     self.write_json(filtered_entries, output_path)
                 elif format_type == "geojson":
                     write_geojson(filtered_entries, output_path, self.selected_decoder_name)
+                # In the write output section, add this after the geojson condition:
+                elif format_type == "kml":
+                    write_kml(filtered_entries, output_path, self.selected_decoder_name)
             
                 # Report both original and filtered counts if filtering was applied
                 if self.filter_duplicates.get() and len(filtered_entries) < len(entries):
@@ -1766,6 +1909,9 @@ class VehicleGPSDecoder:
                     self.write_json(entries, output_path)
                 elif format_type == "geojson":
                     write_geojson(entries, output_path, self.selected_decoder_name)
+                # Add this after the geojson condition:
+                elif format_type == "kml":
+                    write_kml(entries, output_path, self.selected_decoder_name)
                 
                 self.root.after(0, self.processing_complete, len(entries), output_path)
                 
@@ -2157,17 +2303,19 @@ def run_cli():
             print("Please enter a valid number.")
     
     # Select export format
+    # Update the export format selection:
     print("\nExport formats:")
     print("1. Excel (.xlsx)")
     print("2. CSV (.csv)")
     print("3. JSON (.json)")
     print("4. GeoJSON (.geojson)")
-    
-    format_map = {1: "xlsx", 2: "csv", 3: "json", 4: "geojson"}
+    print("5. KML (.kml)")
+
+    format_map = {1: "xlsx", 2: "csv", 3: "json", 4: "geojson", 5: "kml"}
     while True:
         try:
             format_choice = int(input("\nSelect export format (enter number): "))
-            if 1 <= format_choice <= 4:
+            if 1 <= format_choice <= 5:
                 export_format = format_map[format_choice]
                 logger.info(f"CLI export format selected: {export_format}")
                 break
@@ -2482,6 +2630,10 @@ def run_cli():
             
             with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(geojson, f, indent=2, ensure_ascii=False, default=str)
+
+        elif export_format == "kml":
+            logger.debug("Writing KML output")
+            write_kml(entries, output_file, selected_decoder)
         
         print(f"\nSuccessfully extracted {len(entries)} GPS entries.")
         print(f"Results written to: {output_file}")

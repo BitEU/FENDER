@@ -15,7 +15,6 @@ I would also appreciate any assistance with analyzing QNX systems, as all of my 
     * [Python Users](#python-users)  
   * [Supported Vehicles](#supported-vehicles)  
   * [Features](#features)  
-  * [Output Format](#output-format)  
   * [System Requirements](#system-requirements)  
 * [Advanced Guide](#advanced-guide)  
   * [Architecture Overview](#architecture-overview)  
@@ -82,18 +81,10 @@ python main\_gps\_decoder.py \--cli
 
 * 🚗 Multi-manufacturer support with modular decoder architecture  
 * 📍 Extracts latitude, longitude, and timestamps  
-* 📊 Exports data to XLSX format for analysis  
+* 📊 Exports data to XLSX, CSV, JSON, geoJSON, and KML formats for analysis  
 * 🖱️ Drag-and-drop file support  
 * 💻 Both GUI and command-line interfaces  
 * 🔌 Plugin architecture for easy decoder additions
-
-### **Output Format**
-
-The tool generates an XLSX file containing:
-
-* GPS coordinates (latitude/longitude)  
-* Timestamps (UTC format)  
-* Additional metadata specific to each decoder type
 
 ### **System Requirements**
 
