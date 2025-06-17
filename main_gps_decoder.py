@@ -1693,7 +1693,7 @@ class VehicleGPSDecoder:
         output_filename = os.path.basename(output_path)
         format_type = self.export_format.get().upper()
     
-        result_text = (f"✓ Successfully extracted {result_info['filtered_count']} GPS entries to {format_type}:\n"
+        result_text = (f"Successfully extracted {result_info['filtered_count']} GPS entries to {format_type}:\n"
                        f" {output_filename}\n"
                        f" ({result_info['duplicates_removed']} duplicates removed from {result_info['original_count']} total entries)")
     
@@ -1870,7 +1870,7 @@ class VehicleGPSDecoder:
         logger.info(f"Output will be saved to: {output_path}")
     
         # Start processing in a separate thread
-        thread = threading.Thread(target=self.process_in_background_with_filter,  # ← Correct method!
+        thread = threading.Thread(target=self.process_in_background_with_filter,
             args=(self.input_file, output_path))
         thread.daemon = True
         thread.start()
@@ -2194,7 +2194,7 @@ class VehicleGPSDecoder:
         
         output_filename = os.path.basename(output_path)
         format_type = self.export_format.get().upper()
-        result_text = f"✓ Successfully extracted {entry_count} GPS entries to {format_type}:\n {output_filename}"
+        result_text = f"Successfully extracted {entry_count} GPS entries to {format_type}:\n {output_filename}"
         
         self.results_label.configure(text=result_text)
         
@@ -2212,7 +2212,7 @@ class VehicleGPSDecoder:
         
         self.progress_label.configure(text="Processing failed!")
         self.progress['value'] = 0
-        self.results_label.configure(text=f"✗ Error: {error_msg}")
+        self.results_label.configure(text=f"Error: {error_msg}")
         
         messagebox.showerror("Processing Error", f"Failed to process file:\n\n{error_msg}")
     

@@ -1,6 +1,6 @@
 # FENDER Usage Tutorial
 
-This tutorial will walk you through using FENDER to extract GPS data from vehicle telematics files.
+This tutorial will walk you through using FENDER to extract GPS data from vehicle telematics files. The modern iteration of FENDER leverages a modular plugin architecture, supports multiple export formats, improved performance for large files, and enhanced command-line batch processing.
 
 ## Table of Contents
 1. [Getting Started](#getting-started)
@@ -12,22 +12,22 @@ This tutorial will walk you through using FENDER to extract GPS data from vehicl
 ## Getting Started
 
 ### What You'll Need
-- FENDER application (executable or Python source)
-- A vehicle telematics binary file (.CE0 or .USER file)
-- About 5-10 minutes per file
+- The FENDER application (executable or Python source)
+- A vehicle telematics binary file (e.g., `.CE0`, `.USER`, or folder-based log data)
+- Approximately 5–10 minutes to process each file (batch processing is available for automation)
 
 ### Supported File Types
 - **OnStar**: `.CE0` files from OnStar NAND dumps
-- **Toyota**: `.CE0` files from Toyota TL19 systems  
+- **Toyota**: `.CE0` files from Toyota TL19 systems
 - **Honda**: `.USER` files from Honda Android eMMC images
+- **Mercedes-Benz & Stellantis**: Files and folders containing log data
 
 ## GUI Mode Tutorial
 
 ### Step 1: Launch FENDER
-
 **Windows Users:**
 - Double-click `FENDER.exe`
-- If Windows Defender warns you, click "More info" → "Run anyway"
+- If Windows Defender displays a warning, click "More info" and then "Run anyway"
 
 **Python Users:**
 ```bash
@@ -43,6 +43,8 @@ python main_gps_decoder.py
    - **OnStar Gen 10+** for GM vehicles with OnStar
    - **Toyota TL19** for Toyota vehicles
    - **Honda Telematics** for Honda vehicles
+   - **Mercedes-Benz** for Mercedes vehicles
+   - **Stellantis** for Stellantis vehicles
 
 The selected decoder will be highlighted in blue.
 
@@ -52,14 +54,14 @@ You have three options:
 
 **Option A: Drag and Drop**
 1. Open your file explorer
-2. Find your binary file
+2. Find your file/folder
 3. Drag it onto the gray drop zone
 4. Release when you see the drop indicator
 
 **Option B: Click to Browse**
 1. Click anywhere in the gray drop zone
 2. Navigate to your file in the dialog
-3. Select your file and click "Open"
+3. Select your file/folder and click "Open"
 
 **Option C: Browse Button**
 1. Click the "Browse Files" button
@@ -97,7 +99,7 @@ The output file will be saved in the same directory as your input file with the 
 
 The results section will show:
 ```
-✓ Successfully extracted 1,234 GPS entries to:
+Successfully extracted 1,234 GPS entries to:
 vehicle_dump_OnStar Gen 10+.xlsx
 ```
 
