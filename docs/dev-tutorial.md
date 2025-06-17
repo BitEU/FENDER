@@ -590,7 +590,7 @@ if __name__ == '__main__':
 ```python
 def test_integration():
     """Test decoder integration with main app"""
-    from main_gps_decoder import DecoderRegistry
+    from main import DecoderRegistry
     
     # Verify decoder is discovered
     registry = DecoderRegistry()

@@ -5,7 +5,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{cb7804e0-7b2b-4bc2-ae56-eb1c1a68badd}</ProjectGuid>
     <ProjectHome />
-    <StartupFile>main_gps_decoder.py</StartupFile>
+    <StartupFile>main.py</StartupFile>
     <SearchPath />
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
@@ -32,7 +32,7 @@
     <Compile Include="decoders\onstar_decoder.py" />
     <Compile Include="decoders\toyota_decoder.py" />
     <Compile Include="decoders\__init__.py" />
-    <Compile Include="main_gps_decoder.py" />
+    <Compile Include="main.py" />
     <Compile Include="test_main.py" />
   </ItemGroup>
   <ItemGroup>

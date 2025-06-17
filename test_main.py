@@ -8,7 +8,7 @@ import shutil
 import sys
 
 # Assuming these imports are in your project structure
-# from main_gps_decoder import DecoderRegistry, VehicleGPSDecoder
+# from main import DecoderRegistry, VehicleGPSDecoder
 # from base_decoder import BaseDecoder, GPSEntry
 
 # Dummy classes to make the script runnable standalone

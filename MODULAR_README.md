@@ -4,7 +4,7 @@ FENDER has been successfully modularized into the following components:
 
 ## Core Modules
 
-### 1. `main_gps_decoder.py`
+### 1. `main.py`
 - **Purpose**: Main entry point for the application
 - **Contents**: 
   - Logging setup
@@ -79,7 +79,7 @@ FENDER has been successfully modularized into the following components:
 ## Module Dependencies
 
 ```
-main_gps_decoder.py
+main.py
 ├── main_window.py
 │   ├── cli_interface.py (DecoderRegistry)
 │   ├── file_operations.py
@@ -97,17 +97,17 @@ The modular structure maintains backward compatibility:
 
 ```bash
 # GUI mode (default)
-python main_gps_decoder.py
+python main.py
 
 # CLI mode
-python main_gps_decoder.py --cli
+python main.py --cli
 ```
 
 ## File Structure
 
 ```
 FENDER/
-├── main_gps_decoder.py          # Main entry point
+├── main.py          # Main entry point
 ├── main_window.py               # GUI components
 ├── cli_interface.py             # CLI interface
 ├── file_operations.py           # File handling

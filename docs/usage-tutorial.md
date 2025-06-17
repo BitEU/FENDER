@@ -31,7 +31,7 @@ This tutorial will walk you through using FENDER to extract GPS data from vehicl
 
 **Python Users:**
 ```bash
-python main_gps_decoder.py
+python main.py
 ```
 
 ### Step 2: Select Your Decoder
@@ -116,14 +116,14 @@ The command-line interface is perfect for batch processing or automation.
 ### Basic Usage
 
 ```bash
-python main_gps_decoder.py --cli
+python main.py --cli
 ```
 
 ### Step-by-Step CLI Process
 
 1. **Run the CLI**
    ```bash
-   $ python main_gps_decoder.py --cli
+   $ python main.py --cli
    Vehicle GPS Decoder - CLI Mode
    ========================================
    ```
@@ -164,7 +164,7 @@ Create a batch processing script:
 #!/usr/bin/env python
 import os
 import glob
-from main_gps_decoder import DecoderRegistry
+from main import DecoderRegistry
 from openpyxl import Workbook
 
 # Initialize registry
