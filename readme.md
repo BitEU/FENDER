@@ -26,7 +26,7 @@ I would also appreciate any assistance with analyzing QNX systems, as all of my 
     * [Toyota Decoder](#toyota-decoder)  
     * [Honda Decoder](#honda-decoder)  
     * [Mercedes-Benz Decoder](#mercedes-benz-decoder)
-    * [Stellantis Decoder](#stellantis-decoder)]
+    * [Stellantis Decoder](#stellantis-decoder)
   * [Installation from Source](#installation-from-source)  
     * [Windows](#windows)  
     * [Linux/macOS](#linuxmacos)  
@@ -60,14 +60,16 @@ I would also appreciate any assistance with analyzing QNX systems, as all of my 
 
 #### **Python Users**
 
-\# Install dependencies  
-pip install \-r requirements.txt
+```bash
+# Install dependencies  
+pip install -r requirements.txt
 
-\# Run the GUI  
-python main\_gps\_decoder.py
+# Run the GUI  
+python main.py
 
-\# Run in CLI mode  
-python main\_gps\_decoder.py \--cli
+# Run in CLI mode  
+python main.py --cli
+```
 
 ### **Supported Vehicles**
 
@@ -97,18 +99,30 @@ python main\_gps\_decoder.py \--cli
 
 ### **Architecture Overview**
 
-FENDER uses a modular plugin architecture that allows for easy addition of new decoder types:  
+FENDER uses a modular plugin architecture that allows for easy addition of new decoder types:
+
+```
 FENDER/  
-├── main\_gps\_decoder.py    \# Main application (GUI/CLI)  
-├── base\_decoder.py        \# Abstract base class  
-├── decoders/             \# Decoder plugins directory  
-│   ├── \_\_init\_\_.py  
-│   ├── onstar\_decoder.py  
-│   ├── toyota\_decoder.py  
-│   ├── honda\_decoder.py  
-│   ├── mercedes\_decoder.py  
-│   └── stellantis\_decoder.py  
+├── main.py                # Main application entry point
+├── src/                   # Source code modules
+│   ├── core/             # Core components
+│   │   └── base_decoder.py    # Abstract base class  
+│   ├── gui/              # GUI components  
+│   │   └── main_window.py     # Main GUI application
+│   ├── cli/              # CLI components
+│   │   └── cli_interface.py   # Command-line interface
+│   └── utils/            # Utility modules
+│       ├── file_operations.py
+│       └── system_info.py
+├── decoders/             # Decoder plugins directory  
+│   ├── __init__.py  
+│   ├── onstar_decoder.py  
+│   ├── toyota_decoder.py  
+│   ├── honda_decoder.py  
+│   ├── mercedes_decoder.py  
+│   └── stellantis_decoder.py  
 └── requirements.txt
+```
 
 #### **Core Components**
 
@@ -117,13 +131,62 @@ FENDER/
 3. **VehicleGPSDecoder**: Main GUI application using tkinter  
 4. **GPSEntry**: Standard data structure for GPS points
 
+### **Module Structure**
+
+This section provides detailed information about the modular architecture and components:
+
+#### **1. `main.py`**
+- **Purpose**: Main entry point for the application
+- **Contents**: 
+  - Logging setup
+  - Command line argument parsing
+  - Application initialization
+  - Import and execution of GUI or CLI modes
+
+#### **2. `main_window.py`**
+- **Purpose**: GUI components and user interface
+- **Contents**:
+  - `VehicleGPSDecoder` class - Main GUI application
+  - `CustomRadiobutton` and `CustomToggleButton` classes - Custom UI widgets
+  - GUI setup, styling, event handling
+  - File processing workflow for GUI mode
+  - Drag-and-drop functionality
+  - Progress reporting and error handling
+
+#### **3. `cli_interface.py`**
+- **Purpose**: Command-line interface logic
+- **Contents**:
+  - `DecoderRegistry` class - Manages available decoders
+  - `run_cli()` function - Main CLI workflow
+  - User interaction for decoder/format selection
+  - CLI-specific processing and output
+  - Helper functions for CLI operation
+
+#### **4. `file_operations.py`**
+- **Purpose**: File handling and export operations
+- **Contents**:
+  - File validation and security functions
+  - Export format writers (Excel, CSV, JSON, GeoJSON, KML)
+  - Secure file operations (temp files, copying, etc.)
+  - Duplicate entry filtering
+  - File path sanitization and validation
+
+#### **5. `system_info.py`**
+- **Purpose**: System information gathering
+- **Contents**:
+  - Hardware and OS information collection
+  - Decoder integrity verification
+  - Network connectivity checks
+  - Permission validation
+  - Extraction metadata generation
+
 ### **Technical Details**
 
 #### **Plugin Architecture**
 
 The application automatically discovers decoders at runtime:
 
-1. Scans the decoders/ directory for \*\_decoder.py files  
+1. Scans the `decoders/` directory for `*_decoder.py` files  
 2. Imports modules and finds classes inheriting from BaseDecoder  
 3. Registers decoders in the registry  
 4. Makes them available in the GUI/CLI
@@ -137,11 +200,11 @@ Data Location: GPS data stored as text within binary
 Extraction Method: Pattern matching for GPS keywords  
 Key patterns:
 
-* gps\_tow= \- GPS time of week (milliseconds)  
-* gps\_week= \- GPS week number  
-* lat= \- Latitude in hex format  
-* lon= \- Longitude in hex format  
-* utc\_year=, utc\_month=, etc. \- UTC timestamp components
+- `gps_tow=` - GPS time of week (milliseconds)  
+- `gps_week=` - GPS week number  
+- `lat=` - Latitude in hex format  
+- `lon=` - Longitude in hex format  
+- `utc_year=`, `utc_month=`, etc. - UTC timestamp components
 
 **Coordinate Format**:
 
@@ -156,10 +219,10 @@ Data Location: Structured binary format with markers
 Extraction Method: Binary pattern matching with offsets  
 Key markers:
 
-* loc.position \- Base location marker  
-* Various longitude markers (e.g., ong6, ongi5)  
-* Latitude marker: latitud,  
-* Multiple timestamp markers
+- `loc.position` - Base location marker  
+- Various longitude markers (e.g., `ong6`, `ongi5`)  
+- Latitude marker: `latitud,`  
+- Multiple timestamp markers
 
 **Data Structure**:
 
@@ -181,9 +244,9 @@ Process:
 
 **Database Schema**:
 
-* start\_pos\_lat, start\_pos\_lon \- Starting coordinates  
-* finish\_pos\_lat, finish\_pos\_lon \- Ending coordinates  
-* start\_pos\_time, finish\_pos\_time \- Timestamps
+- `start_pos_lat`, `start_pos_lon` - Starting coordinates  
+- `finish_pos_lat`, `finish_pos_lon` - Ending coordinates  
+- `start_pos_time`, `finish_pos_time` - Timestamps
 
 #### **Mercedes-Benz Decoder**
 
@@ -217,12 +280,12 @@ Data Location: Debug logs, service logs, and navigation logs
 Extraction Method: Recursive file search with multi-pattern matching  
 Key patterns:
 
-* SAL\_SDARS\_FUEL \- Navigation destination coordinates  
-* NW\_SOS \- Emergency call position data  
-* SAL\_KONA\_NAVI \- Navigation system coordinates  
-* GetCurrentLocAddressResponse \- Location service responses  
-* JSR179InterfaceImpl \- Low-level positioning with speed data  
-* NaviTelematicsDataRequest \- Telematics position reports  
+- `SAL_SDARS_FUEL` - Navigation destination coordinates  
+- `NW_SOS` - Emergency call position data  
+- `SAL_KONA_NAVI` - Navigation system coordinates  
+- `GetCurrentLocAddressResponse` - Location service responses  
+- `JSR179InterfaceImpl` - Low-level positioning with speed data  
+- `NaviTelematicsDataRequest` - Telematics position reports
 
 **Extraction Process**:
 
@@ -234,68 +297,60 @@ Key patterns:
 
 **Data Format**:
 
-* Coordinates stored as decimal degrees in text format  
-* Timestamps in various formats (MM/DD/YYYY HH:MM:SS.mmm or YYYY.MM.DD HH:MM:SS,mmm)  
-* Some patterns include additional data like speed and heading  
+- Coordinates stored as decimal degrees in text format  
+- Timestamps in various formats (`MM/DD/YYYY HH:MM:SS.mmm` or `YYYY.MM.DD HH:MM:SS,mmm`)  
+- Some patterns include additional data like speed and heading
 
 ### **Installation from Source**
 
 #### **Windows**
 
-\# Clone repository  
+```bash
+# Clone repository  
 git clone https://github.com/BitEU/fender.git  
 cd fender
 
-\# Install dependencies  
-pip install \-r requirements.txt
+# Install dependencies  
+pip install -r requirements.txt
 
-\# Run application  
-python main\_gps\_decoder.py
+# Run application  
+python main.py
+```
 
 #### **Linux/macOS**
 
-\# Clone repository  
+```bash
+# Clone repository  
 git clone https://github.com/BitEU/fender.git  
 cd fender
 
-\# Install dependencies  
-pip install \-r requirements.txt
+# Install dependencies  
+pip install -r requirements.txt
 
-\# Install system dependencies for pytsk3  
-\# Ubuntu/Debian:  
+# Install system dependencies for pytsk3  
+# Ubuntu/Debian:  
 sudo apt-get install libtsk-dev
 
-\# macOS:  
+# macOS:  
 brew install sleuthkit
 
-\# Install pytsk3  
+# Install pytsk3  
 pip install pytsk3
 
-\# Run application  
-python main\_gps\_decoder.py
+# Run application  
+python main.py
+```
 
 ### **Building Executables**
 
 #### **Windows Executable with PyInstaller**
 
-\# Install PyInstaller  
-pip install pyinstaller
+```bash
+# Run build.bat
+build.bat
 
-\# Build single-file executable  
-python \-m PyInstaller \--onefile \--windowed \\  
-  \--icon=car.ico \\  
-  \--add-data "decoders;decoders" \\  
-  \--add-data "base\_decoder.py;." \\  
-  \--add-data "car.ico;." \\  
-  \--hidden-import="tkinterdnd2" \\  
-  \--hidden-import="decoders.honda\_decoder" \\  
-  \--hidden-import="decoders.onstar\_decoder" \\  
-  \--hidden-import="decoders.toyota\_decoder" \\  
-  \--hidden-import="decoders.mercedes\_decoder" \\  
-  \--hidden-import="decoders.stellantis\_decoder" \\  
-  main\_gps\_decoder.py
-
-\# Output will be in dist/main\_gps\_decoder.exe
+# Output will be in dist/main_.exe
+```
 
 ### **Decoder Development**
 
@@ -303,22 +358,24 @@ See the Development Tutorial for detailed instructions on creating new decoders.
 
 #### **Key Methods to Implement**
 
-1. get\_name() \- Decoder display name  
-2. get\_supported\_extensions() \- File extensions list  
-3. extract\_gps\_data() \- Main extraction logic  
-4. get\_xlsx\_headers() \- Column headers for output  
-5. format\_entry\_for\_xlsx() \- Format GPS data for Excel
+1. `get_name()` - Decoder display name  
+2. `get_supported_extensions()` - File extensions list  
+3. `extract_gps_data()` - Main extraction logic  
+4. `get_xlsx_headers()` - Column headers for output  
+5. `format_entry_for_xlsx()` - Format GPS data for Excel
 
 ### **Data Formats**
 
 #### **GPSEntry Structure**
 
+```python
 @dataclass  
 class GPSEntry:  
-    lat: float              \# Latitude in decimal degrees  
-    long: float             \# Longitude in decimal degrees  
-    timestamp: str          \# ISO format timestamp  
-    extra\_data: Dict\[str, Any\]  \# Decoder-specific metadata
+    lat: float              # Latitude in decimal degrees  
+    long: float             # Longitude in decimal degrees  
+    timestamp: str          # ISO format timestamp  
+    extra_data: Dict[str, Any]  # Decoder-specific metadata
+```
 
 #### **XLSX Output Format**
 
@@ -335,38 +392,27 @@ Each decoder can define custom columns, but typically includes:
 
 **"No decoders found" error**
 
-* Ensure decoders/ directory exists  
-* Check that decoder files end with \_decoder.py  
-* Verify Python path includes the application directory
+- Ensure `decoders/` directory exists  
+- Check that decoder files end with `_decoder.py`  
+- Verify Python path includes the application directory
 
 **Honda decoder not working**
 
-* Install pytsk3 library  
-* Ensure you have a valid Android eMMC image  
-* Check that the image contains a userdata partition
+- Install `pytsk3` library  
+- Ensure you have a valid Android eMMC image  
+- Check that the image contains a userdata partition
 
 **Large file processing**
 
-* Files over 4GB may require 64-bit Python  
-* Ensure sufficient RAM (8GB+ recommended for large files)  
-* Consider using CLI mode for better performance
+- Files over 4GB may require 64-bit Python  
+- Ensure sufficient RAM (8GB+ recommended for large files)  
+- Consider using CLI mode for better performance
 
 **Windows Defender warnings**
 
-* Add exception for FENDER.exe  
-* Or build from source yourself
+- Add exception for `FENDER.exe`  
+- Or build from source yourself
 
-#### **Debug Mode**
-
-Run with verbose output:  
-\# Add to main\_gps\_decoder.py  
-import logging  
-logging.basicConfig(level=logging.DEBUG)
-
-#### **Unit Testing**
-
-Run the following script to test both the base decoder and main python file:
-pytest test_main.py -v --log-cli-level=DEBUG
 
 ## **Todo**
 
@@ -442,7 +488,7 @@ Currently unsupported:
 
 1. Fork the repository  
 2. Create a feature branch  
-3. Add your decoder to decoders/  
+3. Add your decoder to `decoders/`  
 4. Include test files for validation. If you are unable to publically supply them due to sensitive content or an ongoing investigation, please contact sschiavone@pace.edu.
 5. Submit a pull request
 

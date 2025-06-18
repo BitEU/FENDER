@@ -97,7 +97,7 @@ Create `decoders/mycar_decoder.py`:
 import struct
 from datetime import datetime, timezone
 from typing import List, Tuple, Optional, Any
-from base_decoder import BaseDecoder, GPSEntry
+from src.core.base_decoder import BaseDecoder, GPSEntry
 
 class MyCarDecoder(BaseDecoder):
     """Decoder for MyCar telematics system"""
@@ -590,7 +590,7 @@ if __name__ == '__main__':
 ```python
 def test_integration():
     """Test decoder integration with main app"""
-    from main import DecoderRegistry
+    from src.cli.cli_interface import DecoderRegistry
     
     # Verify decoder is discovered
     registry = DecoderRegistry()

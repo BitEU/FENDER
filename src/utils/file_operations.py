@@ -934,13 +934,13 @@ def get_system_info(input_file=None, output_file=None, execution_mode="GUI", dec
     if output_file:
         logger.debug(f"Checking write permissions for: {output_dir}")
         system_info["write_permissions_granted"] = check_write_permissions(output_dir)
-    
-    # Add CLI arguments if running in CLI mode
+      # Add CLI arguments if running in CLI mode
     if execution_mode == "CLI":
         cli_args = " ".join(sys.argv)
         logger.debug(f"CLI arguments: {cli_args}")
         system_info["cli_arguments"] = cli_args
-      # Add decoder information if registry is provided
+    
+    # Add decoder information if registry is provided
     if decoder_registry:
         from .file_operations import get_file_hash_safe
         logger.debug("Collecting decoder information from registry")
@@ -961,7 +961,7 @@ def get_system_info(input_file=None, output_file=None, execution_mode="GUI", dec
         system_info["main_script_hash"] = "Error getting main script hash"
     
     try:
-        base_decoder_path = os.path.join(os.path.dirname(sys.argv[0]), "base_decoder.py")
+        base_decoder_path = os.path.join(os.path.dirname(sys.argv[0]), "src", "core", "base_decoder.py")
         if os.path.exists(base_decoder_path):
             logger.debug(f"Calculating hash for base decoder: {base_decoder_path}")
             from .file_operations import get_file_hash_safe

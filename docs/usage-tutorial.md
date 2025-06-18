@@ -164,7 +164,7 @@ Create a batch processing script:
 #!/usr/bin/env python
 import os
 import glob
-from main import DecoderRegistry
+from src.cli.cli_interface import DecoderRegistry
 from openpyxl import Workbook
 
 # Initialize registry
