@@ -4,3 +4,4 @@ openpyxl
 argparse
 pytest
 psutil
+pyinstaller

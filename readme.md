@@ -9,6 +9,7 @@ I would also appreciate any assistance with analyzing QNX systems, as all of my 
 
 ## **Table of Contents**
 
+* [Feedback](#feedback)
 * [Simple Guide](#simple-guide)  
   * [Quick Start](#quick-start)  
     * [Windows Users](#windows-users)  
@@ -19,6 +20,7 @@ I would also appreciate any assistance with analyzing QNX systems, as all of my 
 * [Advanced Guide](#advanced-guide)  
   * [Architecture Overview](#architecture-overview)  
     * [Core Components](#core-components)  
+  * [Module Structure](#module-structure)
   * [Technical Details](#technical-details)  
     * [Plugin Architecture](#plugin-architecture)  
   * [Decoder Specifications](#decoder-specifications)  
@@ -39,11 +41,10 @@ I would also appreciate any assistance with analyzing QNX systems, as all of my 
     * [XLSX Output Format](#xlsx-output-format)  
   * [Troubleshooting](#troubleshooting)  
     * [Common Issues](#common-issues)  
-    * [Debug Mode](#debug-mode)  
 * [Todo](#todo)  
 * [Scoreboard](#scoreboard)
 * [Contributing](#contributing)  
-* [Credits](#credits)  
+* [Credits](#credits)
 
 ## **Simple Guide**
 
