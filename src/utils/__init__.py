@@ -23,8 +23,9 @@ from openpyxl import Workbook
 
 logger = logging.getLogger(__name__)
 
-# FENDER Version Information
-FENDER_VERSION = "0.2.2"
+# Import version from main.py
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from main import FENDER_VERSION, FENDER_BUILD_DATE
 
 # Maximum file size (in GB) the program will load
 sizeingb = 200
@@ -890,10 +891,6 @@ try:
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
-
-# FENDER Version Information
-FENDER_VERSION = "0.2.2"
-FENDER_BUILD_DATE = "June 17 2025"
 
 logger = logging.getLogger(__name__)
 

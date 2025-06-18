@@ -28,8 +28,9 @@ from src.utils.file_operations import (
 from src.utils.system_info import get_system_info, get_extraction_info
 from src.cli.cli_interface import DecoderRegistry
 
-# FENDER Version Information
-FENDER_VERSION = "0.2.2"
+# Import version from main.py
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from main import FENDER_VERSION
 
 # Duplicate filtering precision
 decimals_of_prec = 4
