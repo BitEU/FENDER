@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FENDER - Forensic Extraction of Navigational Data & Event Records</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #e0e0e0;
+            background: linear-gradient(135deg, #0f1419 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: rgba(15, 20, 25, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(74, 158, 255, 0.3);
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #4a9eff;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo::before {
+            content: "🚗";
+            font-size: 1.2rem;
+        }
+
+        .nav-links {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+        }
+
+        .nav-links a {
+            color: #e0e0e0;
+            text-decoration: none;
+            transition: color 0.3s ease;
+            font-weight: 500;
+        }
+
+        .nav-links a:hover {
+            color: #4a9eff;
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 120px 0 80px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(74, 158, 255, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #4a9eff 0%, #64b5f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero .subtitle {
+            font-size: 1.3rem;
+            margin-bottom: 2rem;
+            color: #b0b0b0;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .hero-description {
+            font-size: 1.1rem;
+            margin-bottom: 3rem;
+            color: #d0d0d0;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4a9eff 0%, #2196f3 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(74, 158, 255, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(74, 158, 255, 0.4);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: #4a9eff;
+            border: 2px solid #4a9eff;
+        }
+
+        .btn-secondary:hover {
+            background: #4a9eff;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        /* Features Section */
+        .features {
+            padding: 80px 0;
+            background: rgba(26, 26, 46, 0.5);
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+            color: #4a9eff;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid rgba(74, 158, 255, 0.2);
+            transition: transform 0.3s ease, border-color 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(74, 158, 255, 0.5);
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        .feature-card h3 {
+            color: #4a9eff;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+
+        /* Supported Vehicles */
+        .vehicles {
+            padding: 80px 0;
+        }
+
+        .vehicles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 3rem;
+        }
+
+        .vehicle-card {
+            background: linear-gradient(135deg, rgba(74, 158, 255, 0.1) 0%, rgba(33, 150, 243, 0.05) 100%);
+            padding: 1.5rem;
+            border-radius: 10px;
+            border: 1px solid rgba(74, 158, 255, 0.3);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .vehicle-card:hover {
+            transform: scale(1.05);
+            border-color: rgba(74, 158, 255, 0.6);
+        }
+
+        .vehicle-card h4 {
+            color: #4a9eff;
+            margin-bottom: 0.5rem;
+            font-size: 1.2rem;
+        }
+
+        .vehicle-status {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        .status-full {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+
+        .status-partial {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+            border: 1px solid rgba(255, 193, 7, 0.3);
+        }
+
+        /* Installation */
+        .installation {
+            padding: 80px 0;
+            background: rgba(26, 26, 46, 0.3);
+        }
+
+        .install-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .install-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid rgba(74, 158, 255, 0.2);
+        }
+
+        .install-card h3 {
+            color: #4a9eff;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+
+        .code-block {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1rem;
+            border-radius: 6px;
+            border-left: 3px solid #4a9eff;
+            font-family: 'Courier New', monospace;
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+
+        /* Footer */
+        footer {
+            background: rgba(15, 20, 25, 0.9);
+            padding: 3rem 0 2rem;
+            border-top: 1px solid rgba(74, 158, 255, 0.3);
+        }
+
+        .footer-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+        }
+
+        .footer-section h4 {
+            color: #4a9eff;
+            margin-bottom: 1rem;
+        }
+
+        .footer-section a {
+            color: #b0b0b0;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .footer-section a:hover {
+            color: #4a9eff;
+        }
+
+        .footer-bottom {
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(74, 158, 255, 0.2);
+            color: #888;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero .subtitle {
+                font-size: 1.1rem;
+            }
+
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .features-grid,
+            .vehicles-grid,
+            .install-options {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Smooth scrolling */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* Loading animation */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="nav-container">
+            <a href="#" class="logo">FENDER</a>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#vehicles">Vehicles</a></li>
+                <li><a href="#installation">Installation</a></li>
+                <li><a href="#docs">Documentation</a></li>
+                <li><a href="https://github.com/BitEU/FENDER" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content fade-in">
+                <h1>FENDER</h1>
+                <p class="subtitle">Forensic Extraction of Navigational Data & Event Records</p>
+                <p class="hero-description">
+                    A powerful forensic tool for extracting GPS location data from vehicle telematics binary files. 
+                    Supports multiple manufacturers with an easy-to-use interface for investigators and researchers.
+                </p>
+                <div class="cta-buttons">
+                    <a href="#installation" class="btn btn-primary">
+                        📥 Download FENDER
+                    </a>
+                    <a href="https://github.com/BitEU/FENDER" target="_blank" class="btn btn-secondary">
+                        🔗 View on GitHub
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <div class="container">
+            <h2 class="section-title fade-in">Features</h2>
+            <div class="features-grid">
+                <div class="feature-card fade-in">
+                    <span class="feature-icon">🚗</span>
+                    <h3>Multi-Manufacturer Support</h3>
+                    <p>Extract GPS data from Honda, Toyota, OnStar, Mercedes-Benz, and Stellantis vehicle systems with specialized decoders for each platform.</p>
+                </div>
+                <div class="feature-card fade-in">
+                    <span class="feature-icon">📊</span>
+                    <h3>Multiple Export Formats</h3>
+                    <p>Export your findings to XLSX, CSV, JSON, GeoJSON, and KML formats for analysis in your preferred tools or mapping applications.</p>
+                </div>
+                <div class="feature-card fade-in">
+                    <span class="feature-icon">🖥️</span>
+                    <h3>GUI & CLI Modes</h3>
+                    <p>Choose between an intuitive graphical interface for ease of use or command-line interface for automation and batch processing.</p>
+                </div>
+                <div class="feature-card fade-in">
+                    <span class="feature-icon">🔒</span>
+                    <h3>Secure File Handling</h3>
+                    <p>Built with forensic best practices including secure file operations, integrity verification, and comprehensive logging.</p>
+                </div>
+                <div class="feature-card fade-in">
+                    <span class="feature-icon">🔌</span>
+                    <h3>Plugin Architecture</h3>
+                    <p>Modular decoder system allows for easy addition of new vehicle manufacturers and telematics systems.</p>
+                </div>
+                <div class="feature-card fade-in">
+                    <span class="feature-icon">📍</span>
+                    <h3>Comprehensive Data</h3>
+                    <p>Extract latitude, longitude, timestamps, and additional metadata like speed, heading, and trip information where available.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Supported Vehicles -->
+    <section id="vehicles" class="vehicles">
+        <div class="container">
+            <h2 class="section-title fade-in">Supported Vehicles</h2>
+            <div class="vehicles-grid">
+                <div class="vehicle-card fade-in">
+                    <h4>Honda Motor Co</h4>
+                    <p>Honda, Acura</p>
+                    <span class="vehicle-status status-full">Full Support</span>
+                </div>
+                <div class="vehicle-card fade-in">
+                    <h4>Toyota Group</h4>
+                    <p>Toyota, Lexus</p>
+                    <span class="vehicle-status status-full">Full Support</span>
+                </div>
+                <div class="vehicle-card fade-in">
+                    <h4>General Motors</h4>
+                    <p>GMC, Chevrolet, Buick, Cadillac</p>
+                    <span class="vehicle-status status-full">Full Support</span>
+                </div>
+                <div class="vehicle-card fade-in">
+                    <h4>Mercedes-Benz</h4>
+                    <p>Mercedes-Benz vehicles</p>
+                    <span class="vehicle-status status-partial">Partial Support</span>
+                </div>
+                <div class="vehicle-card fade-in">
+                    <h4>Stellantis</h4>
+                    <p>Chrysler, Dodge, Ram, Jeep, Fiat</p>
+                    <span class="vehicle-status status-partial">Partial Support</span>
+                </div>
+                <div class="vehicle-card fade-in">
+                    <h4>More Coming Soon</h4>
+                    <p>Nissan, Hyundai, Ford, VW Group, BMW, Volvo, Tesla</p>
+                    <span class="vehicle-status">In Development</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Installation -->
+    <section id="installation" class="installation">
+        <div class="container">
+            <h2 class="section-title fade-in">Installation</h2>
+            <div class="install-options">
+                <div class="install-card fade-in">
+                    <h3>🪟 Windows Users</h3>
+                    <p>Download the pre-built executable for easy installation:</p>
+                    <br>
+                        <ol>
+                            <li>Download FENDER.exe from the <a href="https://github.com/BitEU/FENDER/releases/latest" target="_blank">releases page</a></li>
+                            <li>Double-click to run the application</li>
+                            <li>If Windows Defender shows a warning, click "More info" and "Run anyway"</li>
+                        </ol>
+                </div>
+                <div class="install-card fade-in">
+                    <h3>🐍 Python Users</h3>
+                    <p>Install from source for the latest features:</p>
+                    <div class="code-block">
+# Clone the repository<br>
+git clone https://github.com/BitEU/FENDER.git<br>
+cd FENDER<br><br>
+# Install dependencies<br>
+pip install -r requirements.txt<br><br>
+# Run FENDER<br>
+python main.py
+                    </div>
+                </div>
+            </div>
+            <div class="install-card fade-in" style="margin-top: 2rem;">
+                <h3>📋 System Requirements</h3>
+                <ul style="margin-left: 2rem; margin-top: 1rem;">
+                    <li>Windows 10/11 (for .exe release)</li>
+                    <li>Python 3.8+ (for source code)</li>
+                    <li>4GB RAM minimum</li>
+                    <li>500MB free disk space</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>FENDER</h4>
+                    <p>Forensic Extraction of Navigational Data & Event Records</p>
+                    <p>Version 0.2.2 - June 17, 2025</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <p><a href="https://github.com/BitEU/FENDER/blob/main/docs/usage-tutorial.md">Usage Tutorial</a></p>
+                    <p><a href="https://github.com/BitEU/FENDER/blob/main/docs/dev-tutorial.md">Developer Guide</a></p>
+                    <p><a href="https://github.com/BitEU/FENDER/blob/main/readme.md">README</a></p>
+                </div>
+                <div class="footer-section">
+                    <h4>Community</h4>
+                    <p><a href="https://github.com/BitEU/FENDER">GitHub Repository</a></p>
+                    <p><a href="https://github.com/BitEU/FENDER/issues">Report Issues</a></p>
+                    <p><a href="https://github.com/BitEU/FENDER/discussions">Discussions</a></p>
+                </div>
+                <div class="footer-section">
+                    <h4>Legal</h4>
+                    <p><a href="https://github.com/BitEU/FENDER/blob/main/LICENSE">GPL v3 License</a></p>
+                    <p>Open Source Project</p>
+                    <p>For Research & Investigation</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 FENDER. Licensed under GNU General Public License v3. Created for forensic investigators and researchers.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Fade in animation on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, observerOptions);
+
+        // Observe all fade-in elements
+        document.addEventListener('DOMContentLoaded', () => {
+            const fadeElements = document.querySelectorAll('.fade-in');
+            fadeElements.forEach(el => observer.observe(el));
+
+            // Trigger first animation immediately
+            setTimeout(() => {
+                document.querySelector('.hero .fade-in').classList.add('visible');
+            }, 200);
+        });
+
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

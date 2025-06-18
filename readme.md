@@ -26,9 +26,10 @@ I would also appreciate any assistance with analyzing QNX systems, as all of my 
   * [Decoder Specifications](#decoder-specifications)  
     * [OnStar Decoder](#onstar-decoder)  
     * [Toyota Decoder](#toyota-decoder)  
-    * [Honda Decoder](#honda-decoder)  
-    * [Mercedes-Benz Decoder](#mercedes-benz-decoder)
+    * [Honda Decoder](#honda-decoder)    * [Mercedes-Benz Decoder](#mercedes-benz-decoder)
+    * [BMW NBT-HDD Decoder](#bmw-nbt-hdd-decoder)
     * [Stellantis Decoder](#stellantis-decoder)
+    * [BMW NBT-HDD Decoder](#bmw-nbt-hdd-decoder)
   * [Installation from Source](#installation-from-source)  
     * [Windows](#windows)  
     * [Linux/macOS](#linuxmacos)  
@@ -78,6 +79,7 @@ python main.py --cli
 * **Toyota TL19** \- Extracts GPS data from Toyota infotainment systems (.CE0 files)  
 * **Honda Telematics** \- Extracts GPS data from Honda Android eMMC images (.USER files)
 * **Mercedes-Benz** \- Extracts GPS data from Mercedes-Benz database files (.db files)
+* **BMW NBT-HDD** \- Extracts GPS data from BMW NBT-HDD folder structure (folder)
 * **Stellantis** \- Extracts GPS data from a folder holding Stellantis log files (folder)
 
 ### **Features**
@@ -302,6 +304,43 @@ Key patterns:
 - Timestamps in various formats (`MM/DD/YYYY HH:MM:SS.mmm` or `YYYY.MM.DD HH:MM:SS,mmm`)  
 - Some patterns include additional data like speed and heading
 
+#### **BMW NBT-HDD Decoder**
+
+File Format: BMW NBT-HDD folder structure with SQLite database  
+Data Location: `trails.sqlite` database in `NBT-HDD/p2/nav/` directory  
+Extraction Method: Database extraction and binary path decoding  
+Process:
+
+1. Search for NBT-HDD folder structure in dropped folder/path  
+2. Locate `trails.sqlite` database at expected path: `NBT-HDD/p2/nav/trails.sqlite`  
+3. Query `Trails` table for navigation trail records  
+4. Decode binary path data to extract GPS coordinates  
+5. Convert timestamps from Unix format to UTC  
+
+**Database Schema**:
+
+- `TrailId` - Unique identifier for each navigation trail  
+- `BeginTime`, `EndTime` - Unix timestamps for trail start/end  
+- `Path` - Binary blob containing encoded GPS coordinates and events  
+
+**Path Binary Format**:
+
+* Similar to Mercedes-Benz NTG5*2 format  
+* GPS coordinates encoded as 32-bit integers  
+* Formula: `decoded_value = encoded_value * 180 / 2147483647`  
+* Multiple GPS events per trail with elevation data  
+
+**Expected Folder Structure**:
+
+Users should drag and drop the `NBT-HDD` folder, which contains:
+```
+NBT-HDD/
+├── p2/
+│   └── nav/
+│       └── trails.sqlite
+└── [other system folders]
+```
+
 ### **Installation from Source**
 
 #### **Windows**
@@ -455,6 +494,9 @@ Fully supported vehicles:
 Vehicles with partial (parse from file/folder, not disk image) support:
 
 * Mercedes-Benz
+* BMW Group
+  * BMW
+  * Mini
 * Stellantis
   * Chrystler
   * Dodge
@@ -479,9 +521,6 @@ Currently unsupported:
   * Volkswagen
   * Porsche
   * Audi
-* BMW Group
-  * BMW
-  * Mini
 * Volvo
 * Tesla
 
