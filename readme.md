@@ -86,7 +86,7 @@ python main.py --cli
 
 * 🚗 Multi-manufacturer support with modular decoder architecture  
 * 📍 Extracts latitude, longitude, and timestamps  
-* 📊 Exports data to XLSX, CSV, JSON, geoJSON, and KML formats for analysis  
+* 📊 Exports data to XLSX, JSON, and KML formats for analysis  
 * 🖱️ Drag-and-drop file support  
 * 💻 Both GUI and command-line interfaces  
 * 🔌 Plugin architecture for easy decoder additions
@@ -169,7 +169,7 @@ This section provides detailed information about the modular architecture and co
 - **Purpose**: File handling and export operations
 - **Contents**:
   - File validation and security functions
-  - Export format writers (Excel, CSV, JSON, GeoJSON, KML)
+  - Export format writers (Excel, JSON, KML)
   - Secure file operations (temp files, copying, etc.)
   - Duplicate entry filtering
   - File path sanitization and validation

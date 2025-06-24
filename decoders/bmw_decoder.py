@@ -17,7 +17,7 @@ class BMWDecoder(BaseDecoder):
         self._logger.info(f"BMWDecoder initialized")
     
     def get_name(self) -> str:
-        return "BMW iDrive"
+        return "BMW NBT-HDD"
     
     def get_supported_extensions(self) -> List[str]:
         extensions = ['.sqlite', '.db']
@@ -25,7 +25,7 @@ class BMWDecoder(BaseDecoder):
         return extensions
     
     def get_dropzone_text(self) -> str:
-        return "Drop your BMW iDrive SQLite database\nhere or click to browse"
+        return "Drop your BMW NBT-HDD SQLite database\nhere or click to browse"
 
     def get_xlsx_headers(self) -> List[str]:
         headers = [

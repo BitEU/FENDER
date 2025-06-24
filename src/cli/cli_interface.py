@@ -14,8 +14,8 @@ from typing import List
 from src.core.base_decoder import BaseDecoder, GPSEntry
 from src.utils.file_operations import (
     validate_file_path, validate_folder_path, sanitize_filename,
-    filter_duplicate_entries, write_excel_report, write_csv_report,
-    write_json_report, write_geojson_report, write_kml
+    filter_duplicate_entries, write_excel_report,
+    write_json_report, write_kml
 )
 from src.utils.system_info import get_system_info, get_extraction_info
 
@@ -120,20 +120,17 @@ def run_cli():
                 print("Invalid choice. Please try again.")
         except ValueError:
             print("Please enter a valid number.")
-    
-    # Select export format
+      # Select export format
     print("\\nExport formats:")
     print("1. Excel (.xlsx)")
-    print("2. CSV (.csv)")
-    print("3. JSON (.json)")
-    print("4. GeoJSON (.geojson)")
-    print("5. KML (.kml)")
+    print("2. JSON (.json)")
+    print("3. KML (.kml)")
 
-    format_map = {1: "xlsx", 2: "csv", 3: "json", 4: "geojson", 5: "kml"}
+    format_map = {1: "xlsx", 2: "json", 3: "kml"}
     while True:
         try:
             format_choice = int(input("\\nSelect export format (enter number): "))
-            if 1 <= format_choice <= 5:
+            if 1 <= format_choice <= 3:
                 export_format = format_map[format_choice]
                 logger.info(f"CLI export format selected: {export_format}")
                 break
@@ -217,32 +214,24 @@ def run_cli():
     filter_choice = input("\\nFilter duplicate entries? (y/n): ").strip().lower()
     if filter_choice == 'y':
         entries = filter_duplicate_entries(entries, decimals_of_prec, logger)
-        print(f"Filtered to {len(entries)} unique entries")
-
-    # Get system and extraction info for CLI
+        print(f"Filtered to {len(entries)} unique entries")    # Get system and extraction info for CLI
     system_info = get_system_info(
         input_file=input_file,
         output_file=output_file,
         execution_mode="CLI",
         decoder_registry=registry
     )
-    extraction_info = get_extraction_info(selected_decoder, input_file, output_file, len(entries), processing_time)    # Write to selected format
+    extraction_info = get_extraction_info(selected_decoder, input_file, output_file, len(entries), processing_time)
+    
+    # Write to selected format
     try:
         if export_format == "xlsx":
             logger.debug("Writing XLSX output")
             write_excel_report(entries, output_file, selected_decoder, system_info, extraction_info, decoder, examiner_name, case_number)
-            
-        elif export_format == "csv":
-            logger.debug("Writing CSV output")
-            write_csv_report(entries, output_file, selected_decoder, system_info, extraction_info, decoder, examiner_name, case_number)
                 
         elif export_format == "json":
             logger.debug("Writing JSON output")
             write_json_report(entries, output_file, selected_decoder, system_info, extraction_info, decoder, examiner_name, case_number)
-        
-        elif export_format == "geojson":
-            logger.debug("Writing GeoJSON output")
-            write_geojson_report(entries, output_file, selected_decoder, system_info, extraction_info, examiner_name, case_number)
 
         elif export_format == "kml":
             logger.debug("Writing KML output")
@@ -357,10 +346,8 @@ def show_export_format_details():
     print("\\nExport Format Details:")
     print("-" * 30)
     print("1. Excel (.xlsx) - Comprehensive report with multiple sheets")
-    print("2. CSV (.csv)    - Comma-separated values with metadata")
-    print("3. JSON (.json)  - Structured data with full metadata")
-    print("4. GeoJSON       - Geographic data format for mapping")
-    print("5. KML (.kml)    - Google Earth compatible format")
+    print("2. JSON (.json)  - Structured data with full metadata")
+    print("3. KML (.kml)    - Google Earth compatible format")
     print()
 
 
@@ -388,16 +375,16 @@ def interactive_format_selection():
     """Interactive export format selection with details"""
     show_export_format_details()
     
-    format_map = {1: "xlsx", 2: "csv", 3: "json", 4: "geojson", 5: "kml"}
+    format_map = {1: "xlsx", 2: "json", 3: "kml"}
     
     while True:
         try:
             format_choice = int(input("Select export format (enter number): "))
-            if 1 <= format_choice <= 5:
+            if 1 <= format_choice <= 3:
                 export_format = format_map[format_choice]
                 logger.info(f"CLI export format selected: {export_format}")
                 return export_format
             else:
-                print("Invalid choice. Please enter a number between 1 and 5.")
+                print("Invalid choice. Please enter a number between 1 and 3.")
         except ValueError:
             print("Please enter a valid number.")

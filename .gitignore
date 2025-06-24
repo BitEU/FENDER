@@ -6,7 +6,6 @@
 FileContentIndex/
 v17/
 .vs/
-*.csv
 *.xlsx
 *.xml
 *.json

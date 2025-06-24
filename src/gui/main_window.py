@@ -11,7 +11,6 @@ import threading
 import os
 import sys
 import json
-import csv
 from pathlib import Path
 from tkinterdnd2 import DND_FILES, TkinterDnD
 from openpyxl import Workbook
@@ -23,7 +22,7 @@ from typing import List
 from src.core.base_decoder import BaseDecoder, GPSEntry
 from src.utils.file_operations import (
     validate_file_path, validate_folder_path, sanitize_filename,
-    write_geojson, write_kml, filter_duplicate_entries, get_resource_path
+    write_kml, filter_duplicate_entries, get_resource_path
 )
 from src.utils.system_info import get_system_info, get_extraction_info
 from src.cli.cli_interface import DecoderRegistry
@@ -407,10 +406,9 @@ class VehicleGPSDecoder:
         # Main container
         main_frame = ttk.Frame(self.root, style='Dark.TFrame')
         main_frame.pack(fill='both', expand=True, padx=20, pady=20)
-        
-        # Left Panel for Decoder Selection
+          # Left Panel for Decoder Selection
         logger.debug("Creating left panel for decoder selection")
-        left_panel = ttk.Frame(main_frame, style='Dark.TFrame', width=190)
+        left_panel = ttk.Frame(main_frame, style='Dark.TFrame', width=220)
         left_panel.pack_propagate(False)
         left_panel.pack(side='left', fill='y', padx=(0, 20))
         
@@ -470,27 +468,16 @@ class VehicleGPSDecoder:
         
         format_frame = ttk.Frame(export_frame, style='Dark.TFrame')
         format_frame.pack(anchor='w')
-        
-        # Custom radio buttons for export format
+          # Custom radio buttons for export format
         xlsx_radio = CustomRadiobutton(format_frame, "Excel (.xlsx)", 
                                       self.export_format, "xlsx",
                                       bg='#1a1a1a')
         xlsx_radio.pack(side='left', padx=(0, 20))
         
-        csv_radio = CustomRadiobutton(format_frame, "CSV (.csv)", 
-                                     self.export_format, "csv",
-                                     bg='#1a1a1a')
-        csv_radio.pack(side='left', padx=(0, 20))
-        
         json_radio = CustomRadiobutton(format_frame, "JSON (.json)", 
                                       self.export_format, "json",
                                       bg='#1a1a1a')
         json_radio.pack(side='left', padx=(0, 20))
-        
-        geojson_radio = CustomRadiobutton(format_frame, "GeoJSON (.geojson)", 
-                                         self.export_format, "geojson",
-                                         bg='#1a1a1a')
-        geojson_radio.pack(side='left')
 
         kml_radio = CustomRadiobutton(format_frame, "KML (.kml)", 
                              self.export_format, "kml",
@@ -838,44 +825,15 @@ class VehicleGPSDecoder:
                 # Update progress if filtering was applied
                 if len(filtered_entries) < len(entries):
                     self.root.after(0, self.update_progress, 
-                                   f"Filtered {len(entries) - len(filtered_entries)} duplicates...", 80)
-            
-                # Write to selected format
+                                   f"Filtered {len(entries) - len(filtered_entries)} duplicates...", 80)                # Write to selected format
                 format_type = self.export_format.get()
                 logger.info(f"Writing output in {format_type} format")
                 self.root.after(0, self.update_progress, f"Writing {format_type.upper()} file...", 85)
             
                 if format_type == "xlsx":
                     self.write_xlsx(filtered_entries, output_path)
-                elif format_type == "csv":
-                    self.write_csv(filtered_entries, output_path)
                 elif format_type == "json":
                     self.write_json(filtered_entries, output_path)
-                elif format_type == "geojson":
-                    # Get case information and system info for GeoJSON
-                    examiner_name = self.examiner_name.get().strip() if self.examiner_name.get().strip() else None
-                    case_number = self.case_number.get().strip() if self.case_number.get().strip() else None
-                    
-                    # Get system and extraction info
-                    system_info = get_system_info(
-                        input_file=self.input_file,
-                        output_file=output_path,
-                        execution_mode=self.execution_mode,
-                        decoder_registry=self.decoder_registry
-                    )
-                    processing_time = (datetime.now() - self.processing_start_time).total_seconds() if self.processing_start_time else None
-                    extraction_info = get_extraction_info(
-                        self.selected_decoder_name, 
-                        self.input_file, 
-                        output_path, 
-                        len(filtered_entries),
-                        processing_time
-                    )
-                    
-                    from src.utils.file_operations import write_geojson_report, log_report_hash
-                    write_geojson_report(filtered_entries, output_path, self.selected_decoder_name, 
-                                       system_info, extraction_info, examiner_name, case_number)
-                    log_report_hash(output_path, logger)
                 elif format_type == "kml":
                     write_kml(filtered_entries, output_path, self.selected_decoder_name)
                     from src.utils.file_operations import log_report_hash
@@ -960,44 +918,6 @@ class VehicleGPSDecoder:
             logger.info(f"Excel report hash logging completed, result: {hash_result}")
         except Exception as e:
             logger.error(f"Error during Excel report hash logging: {e}", exc_info=True)
-
-    def write_csv(self, entries: List[GPSEntry], output_path: str):
-        """Write GPS entries to CSV file using updated file_operations function"""
-        logger.info(f"Writing {len(entries)} entries to CSV file: {output_path}")
-        
-        # Get system and extraction info
-        system_info = get_system_info(
-            input_file=self.input_file,
-            output_file=output_path,
-            execution_mode=self.execution_mode,
-            decoder_registry=self.decoder_registry
-        )
-        processing_time = (datetime.now() - self.processing_start_time).total_seconds() if self.processing_start_time else None
-        extraction_info = get_extraction_info(
-            self.selected_decoder_name, 
-            self.input_file, 
-            output_path, 
-            len(entries),
-            processing_time
-        )
-        
-        # Get case information
-        examiner_name = self.examiner_name.get().strip() if self.examiner_name.get().strip() else None
-        case_number = self.case_number.get().strip() if self.case_number.get().strip() else None
-        
-        # Use the updated file_operations function
-        from src.utils.file_operations import write_csv_report, log_report_hash
-        write_csv_report(entries, output_path, self.selected_decoder_name, 
-                        system_info, extraction_info, self.current_decoder, 
-                        examiner_name, case_number)
-        
-        # Log the SHA256 hash of the generated report
-        logger.info("About to calculate and log SHA256 hash of CSV report")
-        try:
-            hash_result = log_report_hash(output_path, logger)
-            logger.info(f"CSV report hash logging completed, result: {hash_result}")
-        except Exception as e:
-            logger.error(f"Error during CSV report hash logging: {e}", exc_info=True)
 
     def write_json(self, entries: List[GPSEntry], output_path: str):
         """Write GPS entries to JSON file using updated file_operations function"""

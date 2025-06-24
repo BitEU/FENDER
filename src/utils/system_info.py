@@ -8,7 +8,6 @@ and export operations for various formats.
 import os
 import sys
 import json
-import csv
 import hashlib
 import shutil
 import tempfile
@@ -240,71 +239,6 @@ def get_file_hash_safe(file_path):
     except Exception as e:
         logger.error(f"Error getting file hash for {file_path}: {e}")
         return f"Error calculating hash: {str(e)}"
-
-
-def write_geojson(entries: List, output_path: str, decoder_name: str = "Unknown"):
-    """Write GPS entries to GeoJSON format"""
-    logger.info(f"Writing {len(entries)} entries to GeoJSON file: {output_path}")
-    logger.debug(f"Using decoder: {decoder_name}")
-    
-    features = []
-    skipped_count = 0
-    
-    for i, entry in enumerate(entries):
-        # Skip invalid coordinates
-        if (entry.latitude == 0 and entry.longitude == 0) or \
-           not (-90 <= entry.latitude <= 90) or \
-           not (-180 <= entry.longitude <= 180):
-            logger.debug(f"Skipping invalid coordinates at index {i}: lat={entry.latitude}, lon={entry.longitude}")
-            skipped_count += 1
-            continue
-        
-        # Create feature
-        feature = {
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [entry.longitude, entry.latitude]  # GeoJSON uses [lon, lat]
-            },
-            "properties": {
-                "id": i + 1,
-                "timestamp": entry.timestamp,
-                "latitude": entry.latitude,
-                "longitude": entry.longitude,
-            }
-        }
-        
-        # Add extra data if available
-        if entry.extra_data:
-            feature["properties"].update(entry.extra_data)
-            logger.debug(f"Added extra data to feature {i+1}: {list(entry.extra_data.keys())}")
-        
-        features.append(feature)
-    
-    logger.info(f"Created {len(features)} valid features, skipped {skipped_count} invalid entries")
-    
-    # Create GeoJSON structure
-    geojson = {
-        "type": "FeatureCollection",
-        "metadata": {
-            "decoder": decoder_name,
-            "extraction_timestamp": datetime.now().isoformat(),
-            "total_features": len(features),
-            "coordinate_system": "WGS84",
-            "creator": f"FENDER v{FENDER_VERSION}"
-        },
-        "features": features
-    }
-    
-    # Write to file
-    try:
-        logger.debug(f"Writing GeoJSON to file")
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(geojson, f, indent=2, ensure_ascii=False)
-        logger.info(f"GeoJSON file written successfully: {output_path}")
-    except Exception as e:
-        logger.error(f"Error writing GeoJSON file: {e}", exc_info=True)
-        raise
 
 
 def write_kml(entries: List, output_path: str, decoder_name: str = "Unknown"):
@@ -553,89 +487,6 @@ def write_excel_report(entries: List, output_path: str, decoder_name: str, syste
     logger.info(f"Excel report written successfully: {output_path}")
 
 
-def write_csv_report(entries: List, output_path: str, decoder_name: str, system_info: dict, extraction_info: dict, decoder_instance, examiner_name: str = None, case_number: str = None):
-    """Write comprehensive CSV report with GPS data and metadata"""
-    logger.info(f"Writing CSV report to: {output_path}")
-    
-    headers = decoder_instance.get_xlsx_headers()
-    
-    with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
-        writer = csv.writer(csvfile)
-        
-        # Write headers
-        writer.writerow(headers)
-        
-        # Write entries
-        for entry in entries:
-            row = decoder_instance.format_entry_for_xlsx(entry)
-            writer.writerow(row)
-        
-        # Add separator
-        for _ in range(3):
-            writer.writerow([])
-          # Write extraction details
-        writer.writerow(["FENDER Extraction Report"])
-        writer.writerow([])
-        
-        # Case Information (if provided)
-        if examiner_name or case_number:
-            writer.writerow(["Case Information"])
-            writer.writerow(["Field", "Value"])
-            if examiner_name:
-                writer.writerow(["Examiner Name", examiner_name])
-            if case_number:
-                writer.writerow(["Case Number", case_number])
-            writer.writerow([])
-        
-        # System Information
-        writer.writerow(["System Information"])
-        writer.writerow(["Field", "Value"])
-        for key, value in system_info.items():
-            if key != "decoder_hashes":
-                writer.writerow([key.replace("_", " ").title(), str(value)])
-        
-        writer.writerow([])
-        
-        # Decoder Hashes
-        if "decoder_hashes" in system_info:
-            writer.writerow(["Decoder Integrity Verification"])
-            writer.writerow(["Decoder", "File Path", "SHA256 Hash", "File Size", "Last Modified"])
-            for decoder_name_hash, hash_info in system_info["decoder_hashes"].items():
-                if "error" in hash_info:
-                    writer.writerow([decoder_name_hash, "Error", hash_info["error"], "", ""])
-                else:
-                    writer.writerow([
-                        decoder_name_hash,
-                        hash_info["file_path"],
-                        hash_info["sha256_hash"],
-                        hash_info["file_size"],
-                        hash_info["last_modified"]
-                    ])
-        
-        writer.writerow([])
-        
-        # Extraction Information
-        writer.writerow(["Extraction Information"])
-        writer.writerow(["Field", "Value"])
-        
-        # Input file details
-        writer.writerow(["Input File Path", extraction_info["input_file"]["path"]])
-        writer.writerow(["Input File Name", extraction_info["input_file"]["filename"]])
-        writer.writerow(["Input File Size (MB)", extraction_info["input_file"]["size_mb"]])
-        writer.writerow(["Input File SHA256", extraction_info["input_file"]["sha256_hash"]])
-        
-        # Output file details
-        writer.writerow(["Output File Path", extraction_info["output_file"]["path"]])
-        writer.writerow(["Output File Name", extraction_info["output_file"]["filename"]])
-        
-        # Extraction details
-        writer.writerow(["Decoder Used", extraction_info["extraction_details"]["decoder_used"]])
-        writer.writerow(["Entries Extracted", extraction_info["extraction_details"]["entries_extracted"]])
-        writer.writerow(["Processing Time (seconds)", extraction_info["extraction_details"]["processing_time_seconds"]])
-
-    logger.info(f"CSV report written successfully: {output_path}")
-
-
 def write_json_report(entries: List, output_path: str, decoder_name: str, system_info: dict, extraction_info: dict, decoder_instance, examiner_name: str = None, case_number: str = None):
     """Write comprehensive JSON report with GPS data and metadata"""
     logger.info(f"Writing JSON report to: {output_path}")
@@ -681,69 +532,6 @@ def write_json_report(entries: List, output_path: str, decoder_name: str, system
         json.dump(json_data, jsonfile, indent=2, ensure_ascii=False, default=str)
     
     logger.info(f"JSON report written successfully: {output_path}")
-
-
-def write_geojson_report(entries: List, output_path: str, decoder_name: str, system_info: dict, extraction_info: dict, examiner_name: str = None, case_number: str = None):
-    """Write comprehensive GeoJSON report with GPS data and metadata"""
-    logger.info(f"Writing GeoJSON report to: {output_path}")
-    
-    features = []
-    skipped_count = 0
-    
-    for i, entry in enumerate(entries):
-        # Skip invalid coordinates
-        if (entry.latitude == 0 and entry.longitude == 0) or \
-           not (-90 <= entry.latitude <= 90) or \
-           not (-180 <= entry.longitude <= 180):
-            skipped_count += 1
-            continue
-        
-        # Create feature
-        feature = {
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [entry.longitude, entry.latitude]
-            },
-            "properties": {
-                "id": i + 1,
-                "timestamp": entry.timestamp,
-                "latitude": entry.latitude,
-                "longitude": entry.longitude,
-            }
-        }
-        
-        # Add extra data if available
-        if entry.extra_data:
-            feature["properties"].update(entry.extra_data)
-        
-        features.append(feature)
-      # Create GeoJSON structure with diagnostic data
-    geojson = {
-        "type": "FeatureCollection",
-        "metadata": {
-            "decoder": decoder_name,
-            "extraction_timestamp": datetime.now().isoformat(),
-            "total_features": len(features),
-            "coordinate_system": "WGS84",
-            "creator": f"FENDER v{FENDER_VERSION}",
-            "case_information": {},
-            "system_information": system_info,
-            "extraction_information": extraction_info
-        },
-        "features": features
-    }
-    
-    # Add case information if provided
-    if examiner_name:
-        geojson["metadata"]["case_information"]["examiner_name"] = examiner_name
-    if case_number:
-        geojson["metadata"]["case_information"]["case_number"] = case_number
-    
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(geojson, f, indent=2, ensure_ascii=False, default=str)
-    
-    logger.info(f"GeoJSON report written successfully: {output_path}")
 
 
 def secure_delete_file(filepath):

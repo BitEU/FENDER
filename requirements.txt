@@ -5,3 +5,5 @@ argparse
 pytest
 psutil
 pyinstaller
+orjson
+tqdm
