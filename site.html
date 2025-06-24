@@ -419,9 +419,8 @@
                 <p class="hero-description">
                     A powerful forensic tool for extracting GPS location data from vehicle telematics binary files. 
                     Supports multiple manufacturers with an easy-to-use interface for investigators and researchers.
-                </p>
-                <div class="cta-buttons">
-                    <a href="#installation" class="btn btn-primary">
+                </p>                <div class="cta-buttons">
+                    <a href="#" id="downloadBtn" class="btn btn-primary" onclick="downloadLatestRelease()">
                         📥 Download FENDER
                     </a>
                     <a href="https://github.com/BitEU/FENDER" target="_blank" class="btn btn-secondary">
@@ -487,6 +486,11 @@
                     <span class="vehicle-status status-full">Image Support</span>
                 </div>
                 <div class="vehicle-card fade-in">
+                    <h4>Denso</h4>
+                    <p>ECU Module in Japanese vehicles</p>
+                    <span class="vehicle-status status-full">Image Support</span>
+                </div>
+                <div class="vehicle-card fade-in">
                     <h4>General Motors</h4>
                     <p>GMC, Chevrolet, Buick, Cadillac</p>
                     <span class="vehicle-status status-full">Image Support</span>
@@ -502,8 +506,13 @@
                     <span class="vehicle-status status-partial">Folder Support</span>
                 </div>
                 <div class="vehicle-card fade-in">
+                    <h4>BMW</h4>
+                    <p>BMW vehicles</p>
+                    <span class="vehicle-status status-partial">Folder Support</span>
+                </div>
+                <div class="vehicle-card fade-in">
                     <h4>More Coming Soon</h4>
-                    <p>Nissan, Hyundai, Ford, VW Group, BMW, Volvo, Tesla</p>
+                    <p>Nissan, Hyundai, Ford, VW Group, Volvo, Tesla</p>
                     <span class="vehicle-status">In Development</span>
                 </div>
             </div>
@@ -609,9 +618,7 @@ python main.py
             setTimeout(() => {
                 document.querySelector('.hero .fade-in').classList.add('visible');
             }, 200);
-        });
-
-        // Smooth scrolling for navigation links
+        });        // Smooth scrolling for navigation links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
                 e.preventDefault();
@@ -624,6 +631,68 @@ python main.py
                 }
             });
         });
+
+        // Function to download the latest release
+        async function downloadLatestRelease() {
+            const downloadBtn = document.getElementById('downloadBtn');
+            const originalText = downloadBtn.innerHTML;
+            
+            try {
+                // Show loading state
+                downloadBtn.innerHTML = '⏳ Finding latest release...';
+                downloadBtn.style.pointerEvents = 'none';
+                
+                // Fetch latest release info from GitHub API
+                const response = await fetch('https://api.github.com/repos/BitEU/FENDER/releases/latest');
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch release info');
+                }
+                
+                const releaseData = await response.json();
+                
+                // Find the .exe file in the assets
+                const exeAsset = releaseData.assets.find(asset => 
+                    asset.name.toLowerCase().endsWith('.exe')
+                );
+                
+                if (!exeAsset) {
+                    throw new Error('No executable file found in the latest release');
+                }
+                
+                // Update button text with file info
+                downloadBtn.innerHTML = `Starting Download...`;
+                
+                // Create a temporary link and trigger download
+                const downloadLink = document.createElement('a');
+                downloadLink.href = exeAsset.browser_download_url;
+                downloadLink.download = exeAsset.name;
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                
+                // Reset button after successful download
+                setTimeout(() => {
+                    downloadBtn.innerHTML = '✅ Download started!';
+                    setTimeout(() => {
+                        downloadBtn.innerHTML = originalText;
+                        downloadBtn.style.pointerEvents = 'auto';
+                    }, 2000);
+                }, 500);
+                
+            } catch (error) {
+                console.error('Download error:', error);
+                downloadBtn.innerHTML = '❌ Download failed';
+                
+                // Show error message and fallback to releases page
+                setTimeout(() => {
+                    downloadBtn.innerHTML = originalText;
+                    downloadBtn.style.pointerEvents = 'auto';
+                    // Fallback: open releases page
+                    window.open('https://github.com/BitEU/FENDER/releases/latest', '_blank');
+                }, 3000);
+            }
+        }
     </script>
 </body>
 </html>
