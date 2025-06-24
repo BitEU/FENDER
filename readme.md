@@ -29,6 +29,7 @@ I would also appreciate any assistance with analyzing QNX systems, as all of my 
     * [Honda Decoder](#honda-decoder)    * [Mercedes-Benz Decoder](#mercedes-benz-decoder)
     * [BMW NBT-HDD Decoder](#bmw-nbt-hdd-decoder)
     * [Stellantis Decoder](#stellantis-decoder)
+    * [Denso Decoder](#denso-decoder)
     * [BMW NBT-HDD Decoder](#bmw-nbt-hdd-decoder)
   * [Installation from Source](#installation-from-source)  
     * [Windows](#windows)  
@@ -81,6 +82,7 @@ python main.py --cli
 * **Mercedes-Benz** \- Extracts GPS data from Mercedes-Benz database files (.db files)
 * **BMW NBT-HDD** \- Extracts GPS data from BMW NBT-HDD folder structure (folder)
 * **Stellantis** \- Extracts GPS data from a folder holding Stellantis log files (folder)
+* **Denso** \- Extracts GPS, speed, and bluetooth data from Denso and Acura Android eMMC images (.001 files)
 
 ### **Features**
 
@@ -123,6 +125,8 @@ FENDER/
 │   ├── toyota_decoder.py  
 │   ├── honda_decoder.py  
 │   ├── mercedes_decoder.py  
+│   ├── bmw_decoder.py
+│   ├── denso_decoder.py    
 │   └── stellantis_decoder.py  
 └── requirements.txt
 ```
@@ -303,6 +307,46 @@ Key patterns:
 - Coordinates stored as decimal degrees in text format  
 - Timestamps in various formats (`MM/DD/YYYY HH:MM:SS.mmm` or `YYYY.MM.DD HH:MM:SS,mmm`)  
 - Some patterns include additional data like speed and heading
+
+#### **Denso Decoder**
+
+File Format: Denso and Acura Android eMMC images (.001, .bin, .CE0 files)  
+Data Location: JSON-formatted telemetry data embedded in binary files  
+Extraction Method: Binary pattern matching with JSON parsing  
+Key patterns:
+
+- `Navigation.Location` - GPS coordinates with accuracy and velocity data  
+- `Frame.VehicleSpeed` - Vehicle speed in kilometers per hour  
+- `Phone.BluetoothConnection` - Bluetooth device connection events  
+
+**Extraction Process**:
+
+1. Scan binary file for JSON telemetry record boundaries  
+2. Extract records using regex pattern matching for timestamp and tag fields  
+3. Parse JSON-formatted data from binary context  
+4. Categorize data by event type (location, speed, bluetooth)  
+5. Convert timestamps from ISO format to Unix epoch and UTC  
+6. Validate GPS coordinates and filter invalid entries  
+
+**JSON Record Structure**:
+
+- `timestamp` - ISO format timestamp (e.g., `2023-12-15T14:30:25.123Z`)  
+- `tag` - Event type identifier (`Navigation.Location`, `Frame.VehicleSpeed`, `Phone.BluetoothConnection`)  
+- `value` - Event-specific data payload containing coordinates, speed, or device information  
+
+**GPS Data Format**:
+
+- Coordinates stored as decimal degrees in JSON `coordinate` object  
+- Additional fields: `accuracy`, `speed`, `bearing`, `fixTime`  
+- Speed data includes `kilometersPerHour` field  
+- Bluetooth data includes `deviceName`, `deviceId`, `deviceAddress`, and connection `state`  
+
+**Output Structure**:
+
+The decoder creates separate data categories for comprehensive analysis:
+- Location data with GPS coordinates and navigation details  
+- Speed data with vehicle velocity measurements  
+- Bluetooth data with device connection logs and states  
 
 #### **BMW NBT-HDD Decoder**
 
