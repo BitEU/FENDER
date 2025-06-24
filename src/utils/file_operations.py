@@ -403,6 +403,16 @@ def write_excel_report(entries: List, output_path: str, decoder_name: str, syste
     """Write comprehensive Excel report with GPS data and metadata"""
     logger.info(f"Writing Excel report to: {output_path}")
     
+    # Check if this is a DensoDecoder and use separate sheets export
+    if hasattr(decoder_instance, 'export_to_excel_with_separate_sheets'):
+        logger.info("Using DensoDecoder separate sheets export method")
+        decoder_instance.export_to_excel_with_separate_sheets(
+            entries, output_path, decoder_name, system_info, extraction_info, 
+            examiner_name, case_number
+        )
+        return
+    
+    # Default single-sheet export for other decoders
     wb = Workbook()
     
     # Main GPS Data worksheet
@@ -411,7 +421,7 @@ def write_excel_report(entries: List, output_path: str, decoder_name: str, syste
     
     headers = decoder_instance.get_xlsx_headers()
     ws_data.append(headers)
-    
+
     for entry in entries:
         row = decoder_instance.format_entry_for_xlsx(entry)
         ws_data.append(row)
@@ -491,6 +501,16 @@ def write_json_report(entries: List, output_path: str, decoder_name: str, system
     """Write comprehensive JSON report with GPS data and metadata"""
     logger.info(f"Writing JSON report to: {output_path}")
     
+    # Check if this is a DensoDecoder and use separate sections export
+    if hasattr(decoder_instance, 'export_to_json_with_separate_sections'):
+        logger.info("Using DensoDecoder separate sections export method")
+        decoder_instance.export_to_json_with_separate_sections(
+            entries, output_path, decoder_name, system_info, extraction_info,
+            examiner_name, case_number
+        )
+        return
+    
+    # Default single-section export for other decoders
     json_data = {
         "metadata": {
             "decoder": decoder_name,

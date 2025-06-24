@@ -67,7 +67,94 @@ class DensoDecoder(BaseDecoder):
         ]
         self._logger.debug(f"XLSX headers: {len(headers)} columns")
         return headers
-    
+
+    def get_location_headers(self) -> List[str]:
+        """Headers specific to location data"""
+        return [
+            'Unix Epoch',
+            'Timestamp (UTC)',
+            'Event Type',
+            'Latitude',
+            'Longitude',
+            'Accuracy',
+            'Speed (KMH)',
+            'Bearing',
+            'Fix Time'
+        ]
+
+    def get_speed_headers(self) -> List[str]:
+        """Headers specific to speed data"""
+        return [
+            'Unix Epoch',
+            'Timestamp (UTC)',
+            'Event Type',
+            'Vehicle Speed (KMH)'
+        ]
+
+    def get_bluetooth_headers(self) -> List[str]:
+        """Headers specific to bluetooth data"""
+        return [
+            'Unix Epoch',
+            'Timestamp (UTC)',
+            'Event Type',
+            'Bluetooth Device',
+            'Bluetooth State'
+        ]
+
+    def categorize_entries_by_type(self, entries: List[GPSEntry]) -> dict:
+        """Categorize entries by their event type"""
+        categorized = {
+            'location': [],
+            'speed': [],
+            'bluetooth': []
+        }
+        
+        for entry in entries:
+            event_type = entry.extra_data.get('event_type', '')
+            if event_type == 'Navigation.Location':
+                categorized['location'].append(entry)
+            elif event_type == 'Frame.VehicleSpeed':
+                categorized['speed'].append(entry)
+            elif event_type == 'Phone.BluetoothConnection':
+                categorized['bluetooth'].append(entry)
+        
+        self._logger.info(f"Categorized entries: Location={len(categorized['location'])}, "
+                         f"Speed={len(categorized['speed'])}, Bluetooth={len(categorized['bluetooth'])}")
+        return categorized
+
+    def format_location_entry_for_xlsx(self, entry: GPSEntry) -> List[Any]:
+        """Format a location entry for XLSX export"""
+        return [
+            entry.extra_data.get('unix_epoch', ''),
+            entry.timestamp if entry.timestamp else '',
+            entry.extra_data.get('event_type', ''),
+            entry.latitude if entry.latitude != 0 else '',
+            entry.longitude if entry.longitude != 0 else '',
+            entry.extra_data.get('accuracy', ''),
+            entry.extra_data.get('speed', ''),
+            entry.extra_data.get('bearing', ''),
+            entry.extra_data.get('fix_time', '')
+        ]
+
+    def format_speed_entry_for_xlsx(self, entry: GPSEntry) -> List[Any]:
+        """Format a speed entry for XLSX export"""
+        return [
+            entry.extra_data.get('unix_epoch', ''),
+            entry.timestamp if entry.timestamp else '',
+            entry.extra_data.get('event_type', ''),
+            entry.extra_data.get('vehicle_speed_kmh', '')
+        ]
+
+    def format_bluetooth_entry_for_xlsx(self, entry: GPSEntry) -> List[Any]:
+        """Format a bluetooth entry for XLSX export"""
+        return [
+            entry.extra_data.get('unix_epoch', ''),
+            entry.timestamp if entry.timestamp else '',
+            entry.extra_data.get('event_type', ''),
+            entry.extra_data.get('bluetooth_device', ''),
+            entry.extra_data.get('bluetooth_state', '')
+        ]
+
     def format_entry_for_xlsx(self, entry: GPSEntry) -> List[Any]:
         """Format a GPSEntry into a row for the XLSX file"""
         self._logger.debug(f"Formatting entry for XLSX: lat={entry.latitude}, lon={entry.longitude}")
@@ -386,9 +473,217 @@ class DensoDecoder(BaseDecoder):
         # Basic range check
         if not (-90 <= lat <= 90 and -180 <= lon <= 180):
             return False
-        
-        # Check for null island
+          # Check for null island
         if lat == 0 and lon == 0:
             return False
         
         return True
+    
+    def export_to_excel_with_separate_sheets(self, entries: List[GPSEntry], output_path: str, 
+                                           decoder_name: str, system_info: dict, 
+                                           extraction_info: dict, examiner_name: str = None, 
+                                           case_number: str = None):
+        """Export data to Excel with separate worksheets for different data types"""
+        self._logger.info(f"Writing Excel report with separate sheets to: {output_path}")
+        
+        from openpyxl import Workbook
+        wb = Workbook()
+        
+        # Remove default sheet
+        wb.remove(wb.active)
+        
+        # Categorize entries
+        categorized = self.categorize_entries_by_type(entries)
+        
+        # Create Location Data worksheet
+        if categorized['location']:
+            ws_location = wb.create_sheet("Location Data")
+            headers = self.get_location_headers()
+            ws_location.append(headers)
+            
+            for entry in categorized['location']:
+                row = self.format_location_entry_for_xlsx(entry)
+                ws_location.append(row)
+            self._logger.info(f"Added {len(categorized['location'])} location entries to worksheet")
+        
+        # Create Speed Data worksheet
+        if categorized['speed']:
+            ws_speed = wb.create_sheet("Speed Data")
+            headers = self.get_speed_headers()
+            ws_speed.append(headers)
+            
+            for entry in categorized['speed']:
+                row = self.format_speed_entry_for_xlsx(entry)
+                ws_speed.append(row)
+            self._logger.info(f"Added {len(categorized['speed'])} speed entries to worksheet")
+        
+        # Create Bluetooth Data worksheet
+        if categorized['bluetooth']:
+            ws_bluetooth = wb.create_sheet("Bluetooth Data")
+            headers = self.get_bluetooth_headers()
+            ws_bluetooth.append(headers)
+            
+            for entry in categorized['bluetooth']:
+                row = self.format_bluetooth_entry_for_xlsx(entry)
+                ws_bluetooth.append(row)
+            self._logger.info(f"Added {len(categorized['bluetooth'])} bluetooth entries to worksheet")
+        
+        # Create Extraction Details worksheet (same as original)
+        ws_details = wb.create_sheet("Extraction Details")
+        
+        # Write extraction details
+        ws_details.append(["FENDER Extraction Report"])
+        ws_details.append([])
+        
+        # Case Information (if provided)
+        if examiner_name or case_number:
+            ws_details.append(["Case Information"])
+            ws_details.append(["Field", "Value"])
+            if examiner_name:
+                ws_details.append(["Examiner Name", examiner_name])
+            if case_number:
+                ws_details.append(["Case Number", case_number])
+            ws_details.append([])
+        
+        # System Information
+        ws_details.append(["System Information"])
+        ws_details.append(["Field", "Value"])
+        for key, value in system_info.items():
+            if key != "decoder_hashes":
+                ws_details.append([key.replace("_", " ").title(), str(value)])
+        
+        ws_details.append([])
+        
+        # Decoder Hashes
+        if "decoder_hashes" in system_info:
+            ws_details.append(["Decoder Integrity Verification"])
+            ws_details.append(["Decoder", "File Path", "SHA256 Hash", "File Size", "Last Modified"])
+            for decoder_name_hash, hash_info in system_info["decoder_hashes"].items():
+                if "error" in hash_info:
+                    ws_details.append([decoder_name_hash, "Error", hash_info["error"], "", ""])
+                else:
+                    ws_details.append([
+                        decoder_name_hash,
+                        hash_info["file_path"],
+                        hash_info["sha256_hash"],
+                        hash_info["file_size"],
+                        hash_info["last_modified"]
+                    ])
+        
+        ws_details.append([])
+        
+        # Extraction Information
+        ws_details.append(["Extraction Information"])
+        ws_details.append(["Field", "Value"])
+        
+        # Input file details
+        ws_details.append(["Input File Path", extraction_info["input_file"]["path"]])
+        ws_details.append(["Input File Name", extraction_info["input_file"]["filename"]])
+        ws_details.append(["Input File Size (MB)", extraction_info["input_file"]["size_mb"]])
+        ws_details.append(["Input File SHA256", extraction_info["input_file"]["sha256_hash"]])
+        
+        # Output file details
+        ws_details.append(["Output File Path", extraction_info["output_file"]["path"]])
+        ws_details.append(["Output File Name", extraction_info["output_file"]["filename"]])
+        
+        # Extraction details
+        ws_details.append(["Decoder Used", extraction_info["extraction_details"]["decoder_used"]])
+        ws_details.append(["Entries Extracted", extraction_info["extraction_details"]["entries_extracted"]])
+        ws_details.append(["Processing Time (seconds)", extraction_info["extraction_details"]["processing_time_seconds"]])
+        
+        # Format the details worksheet
+        ws_details.column_dimensions['A'].width = 25
+        ws_details.column_dimensions['B'].width = 50
+        ws_details.column_dimensions['C'].width = 70
+        wb.save(output_path)
+        self._logger.info(f"Excel report with separate sheets written successfully: {output_path}")
+
+    def export_to_json_with_separate_sections(self, entries: List[GPSEntry], output_path: str,
+                                            decoder_name: str, system_info: dict,
+                                            extraction_info: dict, examiner_name: str = None,
+                                            case_number: str = None):
+        """Export data to JSON with separate sections for different data types"""
+        self._logger.info(f"Writing JSON report with separate sections to: {output_path}")
+        
+        # Categorize entries
+        categorized = self.categorize_entries_by_type(entries)
+        
+        json_data = {
+            "metadata": {
+                "decoder": decoder_name,
+                "extraction_timestamp": datetime.now().isoformat(),
+                "total_entries": len(entries),
+                "location_entries": len(categorized['location']),
+                "speed_entries": len(categorized['speed']),
+                "bluetooth_entries": len(categorized['bluetooth'])
+            },
+            "case_information": {},
+            "system_information": system_info,
+            "extraction_information": extraction_info,
+            "location_data": [],
+            "speed_data": [],
+            "bluetooth_data": []
+        }
+        
+        # Add case information if provided
+        if examiner_name:
+            json_data["case_information"]["examiner_name"] = examiner_name
+        if case_number:
+            json_data["case_information"]["case_number"] = case_number
+        
+        # Process location data
+        location_headers = self.get_location_headers()
+        for entry in categorized['location']:
+            row = self.format_location_entry_for_xlsx(entry)
+            entry_dict = {}
+            
+            for i, header in enumerate(location_headers):
+                if i < len(row):
+                    entry_dict[header] = row[i]
+            
+            entry_dict.update({
+                "raw_latitude": entry.latitude,
+                "raw_longitude": entry.longitude,
+                "raw_timestamp": entry.timestamp,
+                "raw_extra_data": entry.extra_data
+            })
+            
+            json_data["location_data"].append(entry_dict)
+        
+        # Process speed data
+        speed_headers = self.get_speed_headers()
+        for entry in categorized['speed']:
+            row = self.format_speed_entry_for_xlsx(entry)
+            entry_dict = {}
+            
+            for i, header in enumerate(speed_headers):
+                if i < len(row):
+                    entry_dict[header] = row[i]
+            
+            entry_dict.update({
+                "raw_timestamp": entry.timestamp,
+                "raw_extra_data": entry.extra_data
+            })
+            
+            json_data["speed_data"].append(entry_dict)
+          # Process bluetooth data
+        bluetooth_headers = self.get_bluetooth_headers()
+        for entry in categorized['bluetooth']:
+            row = self.format_bluetooth_entry_for_xlsx(entry)
+            entry_dict = {}
+            
+            for i, header in enumerate(bluetooth_headers):
+                if i < len(row):
+                    entry_dict[header] = row[i]
+            
+            entry_dict.update({
+                "raw_timestamp": entry.timestamp,
+                "raw_extra_data": entry.extra_data
+            })
+            
+            json_data["bluetooth_data"].append(entry_dict)
+        
+        with open(output_path, 'w', encoding='utf-8') as jsonfile:
+            json.dump(json_data, jsonfile, indent=2, ensure_ascii=False, default=str)
+        
+        self._logger.info(f"JSON report with separate sections written successfully: {output_path}")

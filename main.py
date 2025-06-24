@@ -12,8 +12,8 @@ import argparse
 from pathlib import Path
 
 # FENDER Version Information
-FENDER_VERSION = "0.2.2"
-FENDER_BUILD_DATE = "June 17 2025"
+FENDER_VERSION = "0.2.3"
+FENDER_BUILD_DATE = "June 24 2025"
 
 
 def setup_logging():
