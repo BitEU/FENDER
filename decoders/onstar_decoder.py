@@ -20,7 +20,7 @@ class OnStarDecoder(BaseDecoder):
         return "OnStar Gen 10+"
     
     def get_supported_extensions(self) -> List[str]:
-        extensions = ['.CE0', '.bin']
+        extensions = ['.CE0', '.bin', '.001', '.USER']
         self._logger.debug(f"Supported extensions: {extensions}")
         return extensions
     

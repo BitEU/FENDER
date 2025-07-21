@@ -41,7 +41,7 @@ class HondaDecoder(BaseDecoder):
     
     def get_supported_extensions(self) -> List[str]:
         """Return supported file extensions for Honda Android images"""
-        extensions = ['.USER', '.bin']
+        extensions = ['.USER', '.bin', '.001', '.CE0']
         self._logger.debug(f"Supported extensions: {extensions}")
         return extensions
     
